@@ -246,7 +246,9 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
 
     <div class="card">
       <h2>Ajouter au journal</h2>
-      <label>Aliment</label><input id="fName" placeholder="ex : Poulet 200 g">
+      <label>Aliment</label><input id="fName" placeholder="ex : Poulet">
+      <label style="margin-top:10px">Quantité (g) — les macros ci-dessous valent pour cette quantité</label>
+      <input id="fGrams" type="number" inputmode="numeric" value="100">
       <div class="grid2" style="margin-top:10px">
         <div><label>Calories</label><input id="fKcal" type="number" inputmode="numeric" placeholder="kcal"></div>
         <div><label>Protéines (g)</label><input id="fP" type="number" inputmode="numeric" placeholder="g"></div>
@@ -1011,52 +1013,49 @@ function renderWeek(){
 }
 function addFood(){
   const n=document.getElementById("fName").value.trim();
+  const g=Math.max(1,+document.getElementById("fGrams").value||100);
   const kcal=+document.getElementById("fKcal").value||0;
   const p=+document.getElementById("fP").value||0,c=+document.getElementById("fC").value||0,f=+document.getElementById("fF").value||0;
   if(!n){toast("Donne un nom à l'aliment.");return;}
-  const food={n,kcal:Math.round(kcal),p:Math.round(p),c:Math.round(c),f:Math.round(f),meal:activeMeal};
+  const food={n:n+(g!==100?` (${g} g)`:""),kcal:Math.round(kcal),p:Math.round(p),c:Math.round(c),f:Math.round(f),meal:activeMeal};
   if(!S.foods[viewDate])S.foods[viewDate]=[];
   S.foods[viewDate].push(food);
-  upsertLib(food);
+  // enregistre dans la bibliothèque en macros POUR 100 g (réutilisable et ajustable)
+  const s=100/g;
+  upsertLib({n,kcal:Math.round(kcal*s),p:Math.round(p*s),c:Math.round(c*s),f:Math.round(f*s),unit:"g",per100:true});
   ["fName","fKcal","fP","fC","fF"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("fGrams").value=100;
   save();renderNut();toast("Ajouté ✓");
 }
 /* ===== Bibliothèque d'aliments réutilisable ===== */
 function libKey(n){return (n||"").toLowerCase().trim();}
 function upsertLib(f){
   const k=libKey(f.n);const i=S.library.findIndex(x=>libKey(x.n)===k);
-  const e={n:f.n,kcal:f.kcal,p:f.p,c:f.c,f:f.f};
+  const e={n:f.n,kcal:f.kcal,p:f.p,c:f.c,f:f.f,unit:f.unit||"g",per100:!!f.per100,fixed:!!f.fixed};
   if(i>=0)S.library[i]=e;else S.library.push(e);
 }
 function renderLib(){
   const el=document.getElementById("libList");if(!el)return;
-  if(!S.library.length){el.innerHTML='<p class="note">Vide pour l\'instant. Chaque aliment ajouté au journal s\'enregistre ici et redevient réutilisable et modifiable.</p>';return;}
+  if(!S.library.length){el.innerHTML='<p class="note">Vide pour l\'instant. Chaque aliment ajouté au journal s\'enregistre ici, avec ses macros pour 100 g, réutilisable et ajustable.</p>';return;}
   const q=(document.getElementById("libSearch").value||"").toLowerCase();
   const list=S.library.map((x,i)=>({x,i})).filter(o=>o.x.n.toLowerCase().includes(q)).slice(0,40);
-  el.innerHTML=list.length?list.map(o=>
-    `<div class="food"><div style="flex:1;cursor:pointer" onclick="pickLib(${o.i})"><div>${o.x.n}</div><div class="fk">${o.x.kcal} kcal · P${o.x.p} G${o.x.c} L${o.x.f}</div></div><button class="del" onclick="delLib(${o.i})">×</button></div>`
-  ).join(""):'<p class="note">Aucun résultat.</p>';
+  el.innerHTML=list.length?list.map(o=>{
+    const fixed=o.x.fixed;
+    const unit=fixed?"":" / 100 g";
+    const tag=fixed?' <span class="tag" style="font-size:9px">repas</span>':'';
+    return `<div class="food"><div style="flex:1;cursor:pointer" onclick="pickLib(${o.i})"><div>${o.x.n}${tag}</div><div class="fk">${o.x.kcal} kcal · P${o.x.p} G${o.x.c} L${o.x.f}${unit}</div></div><button class="del" onclick="delLib(${o.i})">×</button></div>`;
+  }).join(""):'<p class="note">Aucun résultat.</p>';
 }
 function pickLib(i){
   const x=S.library[i];if(!x)return;
-  if(x.per100){
-    // produit stocké pour 100g : on charge dans le scanner pour ajuster la quantité
-    bcPer100={n:x.n,unit:x.unit||"g",kcal:x.kcal,p:x.p,c:x.c,f:x.f};
-    document.getElementById("bcQty").value=100;
-    document.getElementById("bcSlider").value=100;
-    document.getElementById("bcProductName").innerHTML=`<b>${x.n}</b><br><span style="font-size:11px;opacity:.7">Ajuste la quantité réelle consommée</span>`;
-    document.getElementById("bcQtyUnit").textContent=x.unit||"g";
-    document.getElementById("bcProduct").style.display="block";
-    document.getElementById("bcMsg").textContent="Produit chargé depuis ta bibliothèque.";
-    renderBcPreview();
-    document.getElementById("bcProduct").scrollIntoView({behavior:"smooth",block:"center"});
-    toast("Ajuste la quantité puis Ajouter");
-  } else {
-    document.getElementById("fName").value=x.n;document.getElementById("fKcal").value=x.kcal;
-    document.getElementById("fP").value=x.p;document.getElementById("fC").value=x.c;document.getElementById("fF").value=x.f;
-    document.getElementById("fName").scrollIntoView({behavior:"smooth",block:"center"});
-    toast("Pré-rempli — modifie si besoin puis Ajouter");
+  if(x.fixed){
+    // repas composé enregistré : ré-ajout direct (non divisible au gramme)
+    const food={n:x.n,kcal:x.kcal,p:x.p,c:x.c,f:x.f,meal:activeMeal};
+    if(!S.foods[viewDate])S.foods[viewDate]=[];S.foods[viewDate].push(food);
+    save();renderNut();toast("Repas ajouté au journal ✓");return;
   }
+  // tous les autres aliments : macros pour 100 g -> ajusteur de quantité (curseur + recalcul auto)
+  loadToQty(x.n,x.unit||"g",x.kcal,x.p,x.c,x.f);
 }
 function delLib(i){S.library.splice(i,1);save();renderLib();}
 /* ===== Scan / lookup code-barres (OpenFoodFacts) ===== */
@@ -1133,7 +1132,7 @@ function loadToQty(name,unit,kcal,p,c,f){
   bcPer100={n:name,unit:unit||"g",kcal:+kcal||0,p:+p||0,c:+c||0,f:+f||0};
   document.getElementById("bcQty").value=100;
   document.getElementById("bcSlider").value=100;
-  document.getElementById("bcProductName").innerHTML=`<b>${name}</b><br><span style="font-size:11px;opacity:.7">Ajuste la quantité réelle consommée</span>`;
+  document.getElementById("bcProductName").innerHTML=`<b>${name}</b><br><span style="font-size:11px;opacity:.7">Valeurs pour 100 ${unit||"g"} — ajuste la quantité réellement mangée</span>`;
   document.getElementById("bcQtyUnit").textContent=unit||"g";
   document.getElementById("bcProduct").style.display="block";
   document.getElementById("bcMsg").textContent="Aliment chargé. Ajuste la quantité puis Ajouter.";
@@ -1209,7 +1208,7 @@ function addMealToJournal(){
   const name=(document.getElementById("mealName").value||"Repas composé").trim();
   const food={n:name+" (composé)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal};
   if(!S.foods[viewDate])S.foods[viewDate]=[];S.foods[viewDate].push(food);
-  upsertLib(food);
+  upsertLib({n:food.n,kcal:food.kcal,p:food.p,c:food.c,f:food.f,fixed:true});
   meal=[];document.getElementById("mealName").value="";renderMeal();
   save();renderNut();toast("Repas ajouté au journal ✓");
 }
