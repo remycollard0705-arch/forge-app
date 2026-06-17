@@ -264,6 +264,11 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
       </div>
       <p class="note" style="margin-top:10px">Pèse-toi à jeun, même heure. La <b>moyenne 7 jours</b> pilote l'ajustement calorique, pas le chiffre du jour.</p>
     </div>
+    <div class="card">
+      <div class="row between"><h2 style="margin:0">Évolution du poids</h2><span class="tag" id="wChartRange"></span></div>
+      <div id="wChart" style="margin-top:10px"></div>
+      <div class="grid3" id="wChartStats" style="margin-top:12px"></div>
+    </div>
     <div class="card" id="adaptCard">
       <h2>Ajustement calorique hebdo</h2>
       <div id="adaptBody"></div>
@@ -402,10 +407,39 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
 
 <!-- ============ HISTORIQUE ============ -->
 <section class="view" id="v-hist">
-  <div class="card">
-    <h2>Historique des séances</h2>
-    <p class="note" style="margin-bottom:10px">Toutes tes séances enregistrées, de la plus récente à la plus ancienne. Appuie sur une séance pour voir le détail.</p>
-    <div id="histList"></div>
+  <div class="seg" id="histSeg" style="margin:0 0 14px">
+    <button class="on" onclick="setHistTab('sess')">💪 Séances</button>
+    <button onclick="setHistTab('nut')">🥗 Nutrition</button>
+  </div>
+
+  <!-- SÉANCES -->
+  <div id="histTabSess">
+    <div class="card">
+      <h2>Historique des séances</h2>
+      <p class="note" style="margin-bottom:10px">De la plus récente à la plus ancienne. Appuie pour voir le détail et modifier.</p>
+      <div id="histList"></div>
+    </div>
+  </div>
+
+  <!-- NUTRITION -->
+  <div id="histTabNut" style="display:none">
+    <div class="card">
+      <div class="row" style="gap:8px;margin-bottom:10px">
+        <button class="btn btn-sm" onclick="shiftNutWeek(-1)">◀</button>
+        <div style="flex:1;text-align:center;font-family:Oswald;font-weight:600;font-size:14px" id="nutWeekLbl"></div>
+        <button class="btn btn-sm" onclick="shiftNutWeek(1)">▶</button>
+      </div>
+      <!-- Bilan 7 jours -->
+      <div class="eyebrow" style="margin-bottom:8px">Bilan de la semaine</div>
+      <div id="nutWeekBars" style="margin-bottom:12px"></div>
+      <div id="nutWeekStats"></div>
+    </div>
+
+    <!-- Journal jour par jour -->
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px">Journal jour par jour</div>
+      <div id="nutDayList"></div>
+    </div>
   </div>
 </section>
 
@@ -650,9 +684,128 @@ function go(v){
   if(v==="body")renderBody();
   if(v==="prog")renderProg();
   if(v==="data")renderJSON();
-  if(v==="hist")renderHist();
+  if(v==="hist"){renderHist();if(histTab==='nut')renderNutHist();}
 }
 const DAY_LABEL={A:"Séance A · Haut poussée",B:"Séance B · Jambes",C:"Séance C · Haut tirage",H:"Maison · Poids du corps",P:"Séance Perso"};
+let histTab='sess';
+let nutHistWeek=todayKey();
+function setHistTab(t){
+  histTab=t;
+  document.querySelectorAll("#histSeg button").forEach((b,i)=>b.classList.toggle("on",i===(t==='sess'?0:1)));
+  document.getElementById("histTabSess").style.display=t==='sess'?"block":"none";
+  document.getElementById("histTabNut").style.display=t==='nut'?"block":"none";
+  if(t==='nut')renderNutHist();
+}
+function shiftNutWeek(n){
+  const d=new Date(nutHistWeek+"T12:00:00");d.setDate(d.getDate()+n*7);
+  nutHistWeek=dkey(d);renderNutHist();
+}
+function renderNutHist(){
+  const keys=weekKeys(nutHistWeek),m=S.macros;
+  const d0=new Date(keys[0]+"T12:00:00"),d6=new Date(keys[6]+"T12:00:00");
+  document.getElementById("nutWeekLbl").textContent=
+    d0.getDate()+"/"+(d0.getMonth()+1)+" → "+d6.getDate()+"/"+(d6.getMonth()+1)+"/"+d6.getFullYear();
+  const days=keys.map(k=>({k,e:eatenOn(k)}));
+  const dn=["L","M","M","J","V","S","D"];
+  const maxk=Math.max(m.kcal*1.1,...days.map(d=>d.e.kcal),1);
+  document.getElementById("nutWeekBars").innerHTML=`
+    <div class="row" style="gap:4px;align-items:flex-end">
+      ${days.map((d,i)=>{
+        const h=d.e.kcal?10+Math.round(d.e.kcal/maxk*54):3;
+        const col=d.e.kcal>m.kcal*1.05?"var(--fat)":d.e.kcal>=m.kcal*0.9?"var(--lime)":"var(--blue)";
+        const isT=d.k===todayKey();
+        return `<div style="flex:1;text-align:center">
+          <div style="font-size:9px;color:var(--faint);font-family:Oswald;margin-bottom:2px">${d.e.kcal?Math.round(d.e.kcal):''}</div>
+          <div style="height:${h}px;background:${d.e.kcal?col:'var(--surface2)'};border-radius:4px 4px 0 0"></div>
+          <div style="font-size:10px;color:${isT?'var(--lime)':'var(--faint)'};font-family:Oswald">${dn[i]}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px">
+      <div style="font-size:11px;color:var(--faint)">Cible : ${m.kcal} kcal/j</div>
+      <div style="font-size:11px"><span style="color:var(--lime)">■ ok</span> <span style="color:var(--blue)">■ sous</span> <span style="color:var(--fat)">■ dépassé</span></div>
+    </div>`;
+  const tot=days.reduce((a,d)=>({kcal:a.kcal+d.e.kcal,p:a.p+d.e.p,c:a.c+d.e.c,f:a.f+d.e.f}),{kcal:0,p:0,c:0,f:0});
+  const logged=days.filter(d=>d.e.kcal>0).length||1;
+  const cSem={kcal:m.kcal*7,p:m.p*7,c:m.c*7,f:m.f*7};
+  const rSem={kcal:Math.max(0,cSem.kcal-tot.kcal),p:Math.max(0,cSem.p-tot.p),c:Math.max(0,cSem.c-tot.c),f:Math.max(0,cSem.f-tot.f)};
+  document.getElementById("nutWeekStats").innerHTML=`
+    <div class="grid2" style="margin-bottom:10px">
+      <div class="stat"><div class="k">Total kcal semaine</div><div class="v">${Math.round(tot.kcal)}<small> / ${cSem.kcal}</small></div></div>
+      <div class="stat"><div class="k">Reste kcal semaine</div><div class="v" style="color:var(--lime)">${Math.round(rSem.kcal)}</div></div>
+    </div>
+    <div class="grid2" style="margin-bottom:10px">
+      <div class="stat"><div class="k">Moy. kcal/j</div><div class="v">${Math.round(tot.kcal/logged)}<small> / ${m.kcal}</small></div></div>
+      <div class="stat"><div class="k">Moy. prot/j</div><div class="v">${Math.round(tot.p/logged)}<small> / ${m.p} g</small></div></div>
+    </div>
+    <div class="macro-ring">
+      ${[["Prot",tot.p,cSem.p,rSem.p,"var(--prot)"],["Gluc",tot.c,cSem.c,rSem.c,"var(--carb)"],["Lip",tot.f,cSem.f,rSem.f,"var(--fat)"]].map(([lab,used,cib,rest,col])=>`
+        <div class="m">
+          <div class="lab" style="color:${col}">${lab}</div>
+          <div class="num" style="color:${col}">${Math.round(rest)}<small style="font-size:9px"> g rest.</small></div>
+          <div class="sub">${Math.round(used)} / ${cib} g</div>
+          <div class="mini-bar"><i style="width:${Math.min(100,cib?used/cib*100:0).toFixed(0)}%;background:${col}"></i></div>
+        </div>`).join("")}
+    </div>
+    <p class="note" style="margin-top:8px">Jours renseignés : <b>${logged} / 7</b>.</p>`;
+  const daysWithFood=[...days].reverse().filter(d=>d.e.kcal>0);
+  document.getElementById("nutDayList").innerHTML=daysWithFood.length
+    ?daysWithFood.map(d=>nutDayCard(d.k)).join("")
+    :'<p class="note">Aucun repas enregistré cette semaine.</p>';
+}
+function nutDayCard(k){
+  const e=eatenOn(k),m=S.macros;
+  const d=new Date(k+"T12:00:00");
+  const ds=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"][d.getDay()]+" "+d.getDate()+"/"+(d.getMonth()+1);
+  const col=e.kcal>m.kcal*1.05?"var(--fat)":e.kcal>=m.kcal*0.9?"var(--lime)":"var(--blue)";
+  return `<div class="exo" id="nutDay${k}">
+    <div class="head" onclick="toggleNutDay('${k}')">
+      <div>
+        <div class="nm">${ds}</div>
+        <div class="pre"><span style="color:${col}">${Math.round(e.kcal)} kcal</span> · P${Math.round(e.p)} G${Math.round(e.c)} L${Math.round(e.f)}</div>
+      </div>
+      <span class="tag" style="color:${col}">${e.kcal>m.kcal*1.05?"↑ dépassé":e.kcal>=m.kcal*0.9?"✓ ok":"↓ sous"}</span>
+    </div>
+    <div class="body" id="nutDayBody${k}"></div>
+  </div>`;
+}
+function toggleNutDay(k){
+  const card=document.getElementById("nutDay"+k);
+  if(card.classList.contains("open")){card.classList.remove("open");return;}
+  card.classList.add("open");renderNutDayBody(k);
+}
+function renderNutDayBody(k){
+  const arr=S.foods[k]||[],m=S.macros;
+  const body=document.getElementById("nutDayBody"+k);
+  if(!arr.length){body.innerHTML='<p class="note">Aucun aliment ce jour.</p>';return;}
+  let html="";
+  MEALS.forEach(s=>{
+    const items=arr.map((f,i)=>({f,i})).filter(o=>(o.f.meal||"diner")===s.id);
+    if(!items.length)return;
+    const tot=items.reduce((a,o)=>({kcal:a.kcal+(+o.f.kcal||0),p:a.p+(+o.f.p||0)}),{kcal:0,p:0});
+    html+=`<div class="eyebrow" style="margin:10px 0 4px">${s.label} · ${Math.round(tot.kcal)} kcal · P${Math.round(tot.p)}</div>`;
+    html+=items.map(o=>`<div class="food">
+      <div style="flex:1"><div>${o.f.n}</div><div class="fk">${o.f.kcal} kcal · P${o.f.p} G${o.f.c} L${o.f.f}</div></div>
+      <button class="del" onclick="delHistFood('${k}',${o.i})">×</button>
+    </div>`).join("");
+  });
+  const e=eatenOn(k);
+  const rest={kcal:Math.max(0,m.kcal-e.kcal),p:Math.max(0,m.p-e.p),c:Math.max(0,m.c-e.c),f:Math.max(0,m.f-e.f)};
+  html+=`<div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px">
+    <div class="eyebrow" style="margin-bottom:6px">Macros restantes ce jour</div>
+    <div class="macro-ring">
+      ${[["kcal",rest.kcal,m.kcal,"var(--lime)"],["Prot",rest.p,m.p,"var(--prot)"],["Gluc",rest.c,m.c,"var(--carb)"],["Lip",rest.f,m.f,"var(--fat)"]].map(([lab,r,tot,col])=>`
+        <div class="m"><div class="lab">${lab}</div><div class="num" style="color:${col}">${Math.round(r)}</div><div class="sub">/ ${tot}</div></div>`).join("")}
+    </div>
+  </div>`;
+  body.innerHTML=html;
+}
+function delHistFood(k,i){
+  if(!S.foods[k])return;
+  S.foods[k].splice(i,1);
+  if(!S.foods[k].length)delete S.foods[k];
+  save();renderNutDayBody(k);renderNutHist();toast("Supprimé ✓");
+}
 function renderHist(){
   const el=document.getElementById("histList");
   const logs=[...S.logs].reverse();
@@ -1388,13 +1541,15 @@ function stopCam(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camS
 /* ===== InBody : graphiques + conseils d'évolution ===== */
 function lineChart(pts,color){
   if(!pts.length)return '<p class="note">Pas de données.</p>';
-  const W=320,H=78,pad=20;
+  const W=320,H=92,pad=22;
   const ys=pts.map(p=>p.y);let mn=Math.min(...ys),mx=Math.max(...ys);if(mn===mx){mn-=1;mx+=1;}
-  const n=pts.length,X=i=>n>1?pad+i*(W-2*pad)/(n-1):W/2,Y=v=>H-14-(v-mn)/(mx-mn)*(H-26);
+  const n=pts.length,X=i=>n>1?pad+i*(W-2*pad)/(n-1):W/2,Y=v=>H-26-(v-mn)/(mx-mn)*(H-40);
   const path=pts.map((p,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" ");
   const dots=pts.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3.5" fill="${color}"/><text x="${X(i).toFixed(1)}" y="${(Y(p.y)-6).toFixed(1)}" fill="${color}" font-size="11" font-family="Oswald,sans-serif" text-anchor="middle">${p.y}</text>`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>${dots}</svg>`;
+  const labels=pts.map((p,i)=>p.lab?`<text x="${X(i).toFixed(1)}" y="${H-6}" fill="var(--faint)" font-size="9" text-anchor="middle">${p.lab}</text>`:"").join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>${dots}${labels}</svg>`;
 }
+function shortDate(iso){const d=new Date((""+iso).slice(0,10)+"T12:00:00");return d.getDate()+"/"+(d.getMonth()+1)+"/"+String(d.getFullYear()).slice(2);}
 function inbodyAdvice(){
   const a=S.inbody;if(a.length<2)return '<div class="callout">Ajoute une 2ᵉ mesure pour obtenir des conseils sur ton évolution.</div>';
   const prev=a[a.length-2],cur=a[a.length-1];
@@ -1420,9 +1575,9 @@ function renderInbody(){
   const adv=document.getElementById("ibAdvice");if(adv)adv.innerHTML=inbodyAdvice();
   const ch=document.getElementById("ibCharts");
   if(ch)ch.innerHTML=
-    '<div class="note" style="margin-top:4px">Poids (kg)</div>'+lineChart(a.map(x=>({y:x.kg})),"var(--lime)")+
-    '<div class="note" style="margin-top:6px">Muscle squelettique (kg)</div>'+lineChart(a.map(x=>({y:x.smm})),"var(--blue)")+
-    '<div class="note" style="margin-top:6px">Taux de graisse (%)</div>'+lineChart(a.map(x=>({y:x.fatpct})),"var(--fat)");
+    '<div class="note" style="margin-top:4px">Poids (kg)</div>'+lineChart(a.map(x=>({y:x.kg,lab:shortDate(x.date)})),"var(--lime)")+
+    '<div class="note" style="margin-top:6px">Muscle squelettique (kg)</div>'+lineChart(a.map(x=>({y:x.smm,lab:shortDate(x.date)})),"var(--blue)")+
+    '<div class="note" style="margin-top:6px">Taux de graisse (%)</div>'+lineChart(a.map(x=>({y:x.fatpct,lab:shortDate(x.date)})),"var(--fat)");
 }
 function addInbody(){
   const d=document.getElementById("ibDate").value||todayKey();
@@ -1464,8 +1619,58 @@ function renderBody(){
       <p class="note">Tendance 7j vs semaine précédente : <b>${(tr>=0?'+':'')+tr.toFixed(2)} kg</b> · cible : <b>${(target>=0?'+':'')+target} kg/sem</b></p>`;
   }
   document.getElementById("adaptBody").innerHTML=html;
+  renderWeightChart();
   renderInbody();
   const idt=document.getElementById("ibDate");if(idt&&!idt.value)idt.value=todayKey();
+}
+function renderWeightChart(){
+  const el=document.getElementById("wChart");
+  const ws=[...S.weights].sort((a,b)=>new Date(a.d)-new Date(b.d));
+  if(ws.length<1){
+    el.innerHTML='<p class="note">Enregistre ton poids ci-dessus : le graphique se construit tout seul à chaque relevé.</p>';
+    document.getElementById("wChartStats").innerHTML="";document.getElementById("wChartRange").textContent="";
+    return;
+  }
+  const pts=ws.slice(-30).map(w=>({y:w.kg,d:new Date(w.d)}));
+  // courbe + moyenne mobile 7 pts
+  const W=320,H=120,padL=4,padR=4,padT=14,padB=18;
+  const ys=pts.map(p=>p.y);let mn=Math.min(...ys),mx=Math.max(...ys);
+  if(mn===mx){mn-=0.5;mx+=0.5;}else{const pad=(mx-mn)*0.15;mn-=pad;mx+=pad;}
+  const n=pts.length;
+  const X=i=>n>1?padL+i*(W-padL-padR)/(n-1):W/2;
+  const Y=v=>H-padB-(v-mn)/(mx-mn)*(H-padT-padB);
+  const line=pts.map((p,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" ");
+  // moyenne mobile 7
+  const mm=pts.map((p,i)=>{const s=Math.max(0,i-6);const sl=pts.slice(s,i+1);return sl.reduce((a,b)=>a+b.y,0)/sl.length;});
+  const mmLine=mm.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)).join(" ");
+  const dots=pts.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="2.5" fill="var(--lime)"/>`).join("");
+  const last=pts[pts.length-1],lastLbl=`<text x="${X(n-1).toFixed(1)}" y="${(Y(last.y)-6).toFixed(1)}" fill="var(--lime)" font-size="11" font-family="Oswald,sans-serif" text-anchor="end">${last.y} kg</text>`;
+  const fmtD=d=>d.getDate()+"/"+(d.getMonth()+1);
+  // repères de date répartis sur l'axe (max 5)
+  const nTicks=Math.min(n,5);
+  let ticks="";
+  for(let t=0;t<nTicks;t++){
+    const i=nTicks===1?0:Math.round(t*(n-1)/(nTicks-1));
+    const anchor=t===0?"start":t===nTicks-1?"end":"middle";
+    ticks+=`<line x1="${X(i).toFixed(1)}" y1="${(H-padB).toFixed(1)}" x2="${X(i).toFixed(1)}" y2="${(H-padB+3).toFixed(1)}" stroke="var(--faint)" stroke-width="1"/>`
+      +`<text x="${X(i).toFixed(1)}" y="${H-4}" fill="var(--faint)" font-size="9" text-anchor="${anchor}">${fmtD(pts[i].d)}</text>`;
+  }
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">
+    <path d="${mmLine}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-dasharray="4 3" opacity="0.8"/>
+    <path d="${line}" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linejoin="round"/>
+    ${dots}${lastLbl}${ticks}
+  </svg>
+  <div style="font-size:10px;color:var(--faint);margin-top:2px"><span style="color:var(--lime)">━ poids</span> &nbsp; <span style="color:var(--blue)">┄ moyenne 7 relevés</span></div>`;
+  document.getElementById("wChartRange").textContent=ws.length+" relevé"+(ws.length>1?"s":"");
+  // stats
+  const cur=ws[ws.length-1].kg;
+  const first=ws[0].kg;
+  const delta=+(cur-first).toFixed(1);
+  const tr=trend7();
+  document.getElementById("wChartStats").innerHTML=`
+    <div class="stat"><div class="k">Actuel</div><div class="v">${cur.toFixed(1)}<small> kg</small></div></div>
+    <div class="stat"><div class="k">Δ total</div><div class="v" style="color:${delta>=0?'var(--lime)':'var(--blue)'}">${delta>=0?'+':''}${delta}<small> kg</small></div></div>
+    <div class="stat"><div class="k">Tendance 7j</div><div class="v">${tr===null?'—':((tr>=0?'+':'')+tr.toFixed(2))}<small> kg</small></div></div>`;
 }
 function logWeight(){
   const kg=+document.getElementById("bKg").value;
