@@ -665,32 +665,87 @@ function renderHist(){
     const exos=lg.exos?lg.exos.length:lg.done||0;
     const best=lg.exos&&lg.exos.length?Math.max(...lg.exos.map(e=>e.e1rm||0)):null;
     return `<div class="exo" id="hlog${i}">
-      <div class="head" onclick="toggleHlog(${i})">
-        <div><div class="nm">${type}</div>
-          <div class="pre"><span style="color:var(--lime)">${ds}</span> · Sem. ${lg.week||"—"} · ${exos} exercice(s)</div></div>
-        <span class="tag">${best?'1RM max '+best+' kg':'—'}</span>
+      <div class="head">
+        <div style="flex:1;cursor:pointer" onclick="toggleHlog(${i})">
+          <div class="nm">${type}</div>
+          <div class="pre"><span style="color:var(--lime)">${ds}</span> · Sem. ${lg.week||"—"} · ${exos} exercice(s)</div>
+        </div>
+        <button class="btn btn-sm btn-red" style="padding:7px 10px;margin-left:8px" onclick="deleteSess(${i})">🗑</button>
       </div>
       <div class="body" id="hlogBody${i}"></div>
     </div>`;
   }).join("");
 }
+function deleteSess(i){
+  modalConfirm("Supprimer cette séance ?",()=>{
+    S.logs.splice(i,1);save();renderHist();toast("Séance supprimée ✓");
+  });
+}
 function toggleHlog(i){
-  const body=document.getElementById("hlogBody"+i);
   const card=document.getElementById("hlog"+i);
   if(card.classList.contains("open")){card.classList.remove("open");return;}
   card.classList.add("open");
+  renderHlogBody(i);
+}
+function renderHlogBody(i){
+  const body=document.getElementById("hlogBody"+i);
   const lg=S.logs[i];
-  if(!lg.exos||!lg.exos.length){body.innerHTML='<p class="note">Séance maison ou perso sans détail de charge.</p>';return;}
-  body.innerHTML=lg.exos.map(ex=>{
+  if(!lg.exos||!lg.exos.length){
+    body.innerHTML='<p class="note">Séance maison ou perso sans détail de charge.</p>';return;
+  }
+  body.innerHTML=lg.exos.map((ex,ei)=>{
     const rows=ex.sets||[];
-    const setsHtml=rows.map((s,si)=>`<div style="font-size:12px;color:var(--muted);margin-top:3px">Série ${si+1} : <b style="color:var(--txt)">${s.w} kg × ${s.r} reps</b>${s.rir!==""&&s.rir!=null?` · RIR ${s.rir}`:''}</div>`).join("");
     const nextReco=computeReco(ex.n,{reps:null,start:0,sets:rows.length});
+    const setsHtml=rows.map((s,si)=>`
+      <div class="setrow" style="grid-template-columns:26px 1fr 1fr 1fr 1fr;margin-bottom:6px">
+        <div class="si">${si+1}</div>
+        <input type="number" inputmode="decimal" value="${s.w}" placeholder="kg"
+          style="text-align:center;font-size:14px"
+          onchange="editSessSet(${i},${ei},${si},'w',this.value)">
+        <input type="number" inputmode="numeric" value="${s.r}" placeholder="reps"
+          style="text-align:center;font-size:14px"
+          onchange="editSessSet(${i},${ei},${si},'r',this.value)">
+        <input type="number" inputmode="numeric" value="${s.rir!=null?s.rir:''}" placeholder="RIR"
+          style="text-align:center;font-size:14px"
+          onchange="editSessSet(${i},${ei},${si},'rir',this.value)">
+        <button class="del" onclick="deleteSessSet(${i},${ei},${si})">×</button>
+      </div>`).join("");
     return `<div style="border-top:1px solid var(--line);padding:10px 0">
-      <div style="font-family:Oswald;font-weight:600;font-size:14px">${ex.n}</div>
+      <div class="row between" style="margin-bottom:6px">
+        <div style="font-family:Oswald;font-weight:600;font-size:14px">${ex.n}</div>
+        <button class="btn btn-sm" style="padding:5px 9px;font-size:11px" onclick="addSessSet(${i},${ei})">+ série</button>
+      </div>
+      <div style="font-size:10px;color:var(--faint);display:grid;grid-template-columns:26px 1fr 1fr 1fr 1fr;gap:7px;margin-bottom:4px;padding:0 2px">
+        <span></span><span>kg</span><span>reps</span><span>RIR</span><span></span>
+      </div>
       ${setsHtml}
-      <div class="e1rm" style="margin-top:6px">1RM estimé : ${ex.e1rm||"—"} kg · 🎯 Prochaine fois : ${nextReco.reason}</div>
+      <div class="e1rm" style="margin-top:6px">1RM estimé : ${ex.e1rm||"—"} kg · 🎯 ${nextReco.reason}</div>
     </div>`;
   }).join("");
+}
+function editSessSet(i,ei,si,field,val){
+  const s=S.logs[i].exos[ei].sets[si];
+  if(!s)return;
+  s[field]=field==='rir'?val:(+val||0);
+  // recalcule e1RM de l'exercice
+  const sets=S.logs[i].exos[ei].sets;
+  let best=0;sets.forEach(r=>{if(r.w&&r.r){const e=(+r.w)*(1+(+r.r)/30);if(e>best)best=e;}});
+  S.logs[i].exos[ei].e1rm=Math.round(best);
+  // met à jour le 1RM global si c'est le meilleur connu
+  const name=S.logs[i].exos[ei].n;
+  S.e1rm[name]=Math.max(S.e1rm[name]||0,Math.round(best));
+  save();renderHlogBody(i);toast("Modifié ✓");
+}
+function deleteSessSet(i,ei,si){
+  S.logs[i].exos[ei].sets.splice(si,1);
+  if(!S.logs[i].exos[ei].sets.length){S.logs[i].exos.splice(ei,1);}
+  save();renderHlogBody(i);toast("Série supprimée ✓");
+}
+function addSessSet(i,ei){
+  const sets=S.logs[i].exos[ei].sets;
+  const last=sets[sets.length-1]||{w:0,r:0,rir:""};
+  sets.push({w:last.w,r:last.r,rir:last.rir});
+  save();renderHlogBody(i);toast("Série ajoutée ✓");
 }
 function showRecap(lg){
   const d=new Date(lg.date);
