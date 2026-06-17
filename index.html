@@ -126,18 +126,6 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
 
   <!-- ============ AUJOURD'HUI ============ -->
   <section class="view on" id="v-home">
-    <div class="card" id="homeSessionCard">
-      <div class="eyebrow" id="homeWeekLbl">Semaine 1 · Accumulation</div>
-      <div class="row between" style="margin-top:8px">
-        <div>
-          <div class="disp" style="font-size:26px" id="homeSessName">Séance A</div>
-          <div class="dim" style="font-size:13px;margin-top:2px" id="homeSessSub">Haut du corps · poussée + dos</div>
-        </div>
-        <span class="tag lime" id="homeSessTag">3×/sem</span>
-      </div>
-      <button class="btn btn-prim btn-block" style="margin-top:14px" onclick="go('train')">Démarrer la séance →</button>
-    </div>
-
     <div class="card">
       <h2>Macros restantes aujourd'hui</h2>
       <div class="macro-ring" id="homeMacros"></div>
@@ -400,7 +388,26 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
   <button data-v="body" onclick="go('body')"><svg viewBox="0 0 24 24"><circle cx="12" cy="6" r="3"/><path d="M6 21v-3a6 6 0 0 1 12 0v3"/></svg>Corps</button>
   <button data-v="prog" onclick="go('prog')"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-9"/></svg>Plan</button>
   <button data-v="data" onclick="go('data')"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg>Data</button>
+  <button data-v="hist" onclick="go('hist')"><svg viewBox="0 0 24 24"><path d="M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-3M3 4v4h4"/></svg>Histo</button>
 </nav>
+
+<!-- ============ RÉCAP SÉANCE ============ -->
+<div id="v-recap" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto;padding:20px 16px 100px">
+  <div style="max-width:520px;margin:0 auto">
+    <div class="eyebrow" style="margin-bottom:8px">Séance enregistrée ✓</div>
+    <div id="recapContent"></div>
+    <button class="btn btn-prim btn-block" style="margin-top:16px" onclick="closeRecap()">Fermer</button>
+  </div>
+</div>
+
+<!-- ============ HISTORIQUE ============ -->
+<section class="view" id="v-hist">
+  <div class="card">
+    <h2>Historique des séances</h2>
+    <p class="note" style="margin-bottom:10px">Toutes tes séances enregistrées, de la plus récente à la plus ancienne. Appuie sur une séance pour voir le détail.</p>
+    <div id="histList"></div>
+  </div>
+</section>
 
 <script>
 /* ========= PROGRAMME (basé sur tes données : 191cm, 83kg, 14.4%MG, intermédiaire, 3j/sem, salle complète) ========= */
@@ -562,7 +569,8 @@ function blank(){
   return {
     profile:{kg:83,cm:191,age:29,act:1.5,goal:"bulk",bmr:1905},
     macros:{kcal:0,p:0,c:0,f:0},
-    sessionCount:0,         // nb de séances terminées -> détermine jour & semaine
+    sessionCount:0,         // nb de séances terminées -> détermine semaine & phase
+    nextDay:"A",            // prochaine séance à faire (suit le jour réellement réalisé)
     // 1RM estimés (Epley) depuis tes vrais logs mars-juin 2026
     e1rm:{
       "Développé couché barre":76,
@@ -630,10 +638,10 @@ function dateLabel(k){const d=new Date(k+"T12:00:00");const j=["dim","lun","mar"
 function mondayOf(k){const d=new Date(k+"T12:00:00");const off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);return d;}
 function weekKeys(k){const mon=mondayOf(k),arr=[];for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);arr.push(dkey(d));}return arr;}
 
-/* ========= NAV ========= */
+/* ========= HISTORIQUE ========= */
 function go(v){
   document.querySelectorAll(".view").forEach(e=>e.classList.remove("on"));
-  document.getElementById("v-"+v).classList.add("on");
+  const el=document.getElementById("v-"+v);if(el)el.classList.add("on");
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   window.scrollTo(0,0);
   if(v==="home")renderHome();
@@ -642,22 +650,83 @@ function go(v){
   if(v==="body")renderBody();
   if(v==="prog")renderProg();
   if(v==="data")renderJSON();
+  if(v==="hist")renderHist();
 }
+const DAY_LABEL={A:"Séance A · Haut poussée",B:"Séance B · Jambes",C:"Séance C · Haut tirage",H:"Maison · Poids du corps",P:"Séance Perso"};
+function renderHist(){
+  const el=document.getElementById("histList");
+  const logs=[...S.logs].reverse();
+  if(!logs.length){el.innerHTML='<p class="note">Aucune séance enregistrée pour l\'instant.</p>';return;}
+  el.innerHTML=logs.map((lg,ri)=>{
+    const i=S.logs.length-1-ri;
+    const d=new Date(lg.date);
+    const ds=d.getDate()+"/"+(d.getMonth()+1)+"/"+d.getFullYear();
+    const type=DAY_LABEL[lg.day]||("Séance "+lg.day);
+    const exos=lg.exos?lg.exos.length:lg.done||0;
+    const best=lg.exos&&lg.exos.length?Math.max(...lg.exos.map(e=>e.e1rm||0)):null;
+    return `<div class="exo" id="hlog${i}">
+      <div class="head" onclick="toggleHlog(${i})">
+        <div><div class="nm">${type}</div>
+          <div class="pre"><span style="color:var(--lime)">${ds}</span> · Sem. ${lg.week||"—"} · ${exos} exercice(s)</div></div>
+        <span class="tag">${best?'1RM max '+best+' kg':'—'}</span>
+      </div>
+      <div class="body" id="hlogBody${i}"></div>
+    </div>`;
+  }).join("");
+}
+function toggleHlog(i){
+  const body=document.getElementById("hlogBody"+i);
+  const card=document.getElementById("hlog"+i);
+  if(card.classList.contains("open")){card.classList.remove("open");return;}
+  card.classList.add("open");
+  const lg=S.logs[i];
+  if(!lg.exos||!lg.exos.length){body.innerHTML='<p class="note">Séance maison ou perso sans détail de charge.</p>';return;}
+  body.innerHTML=lg.exos.map(ex=>{
+    const rows=ex.sets||[];
+    const setsHtml=rows.map((s,si)=>`<div style="font-size:12px;color:var(--muted);margin-top:3px">Série ${si+1} : <b style="color:var(--txt)">${s.w} kg × ${s.r} reps</b>${s.rir!==""&&s.rir!=null?` · RIR ${s.rir}`:''}</div>`).join("");
+    const nextReco=computeReco(ex.n,{reps:null,start:0,sets:rows.length});
+    return `<div style="border-top:1px solid var(--line);padding:10px 0">
+      <div style="font-family:Oswald;font-weight:600;font-size:14px">${ex.n}</div>
+      ${setsHtml}
+      <div class="e1rm" style="margin-top:6px">1RM estimé : ${ex.e1rm||"—"} kg · 🎯 Prochaine fois : ${nextReco.reason}</div>
+    </div>`;
+  }).join("");
+}
+function showRecap(lg){
+  const d=new Date(lg.date);
+  const ds=d.getDate()+"/"+(d.getMonth()+1)+"/"+d.getFullYear();
+  const type=DAY_LABEL[lg.day]||("Séance "+lg.day);
+  let html=`<div class="card"><div class="eyebrow" style="margin-bottom:6px">${ds} · Sem. ${lg.week||"—"}</div><div class="disp" style="font-size:24px;margin-bottom:12px">${type}</div>`;
+  if(lg.exos&&lg.exos.length){
+    lg.exos.forEach(ex=>{
+      const rows=ex.sets||[];
+      const best=ex.e1rm?`<span style="color:var(--lime)">1RM est. ${ex.e1rm} kg</span>`:"";
+      const nextReco=computeReco(ex.n,{reps:null,start:0,sets:rows.length});
+      html+=`<div style="border-top:1px solid var(--line);padding:10px 0">
+        <div style="font-family:Oswald;font-weight:600;font-size:14px;margin-bottom:6px">${ex.n} ${best}</div>`;
+      rows.forEach((s,si)=>{html+=`<div style="font-size:13px;color:var(--muted)">Série ${si+1} : <b style="color:var(--txt)">${s.w} kg × ${s.r} reps</b>${s.rir!==""&&s.rir!=null?` · RIR ${s.rir}`:''}</div>`;});
+      html+=`<div class="e1rm" style="margin-top:6px">🎯 Prochaine fois : ${nextReco.reason}</div></div>`;
+    });
+  } else {html+='<p class="note">Séance maison ou perso sans détail de charge.</p>';}
+  html+=`</div>`;
+  document.getElementById("recapContent").innerHTML=html;
+  document.getElementById("v-recap").style.display="block";
+  document.getElementById("v-recap").scrollTop=0;
+}
+function closeRecap(){document.getElementById("v-recap").style.display="none";go("hist");}
 
 /* ========= JOUR / SEMAINE ========= */
-function curDayKey(){return ["A","B","C"][S.sessionCount%3];}
-function curWeek(){return Math.floor(S.sessionCount/3)%13 + 1;}
+const NEXT={A:"B",B:"C",C:"A"};
+const PHASE_OFFSET=4; // démarre en semaine 5 = phase Hypertrophie (on saute l'accumulation)
+function curDayKey(){return S.nextDay||"A";}
+function curWeek(){return (Math.floor(S.sessionCount/3)+PHASE_OFFSET)%13 + 1;}
 function curPhase(){const w=curWeek();if(w<=4)return 0;if(w<=9)return 1;if(w<=12)return 2;return 3;}
 function phaseRir(){return PHASES[curPhase()].rir;}
 
 /* ========= HOME ========= */
 function renderHome(){
-  const d=curDayKey(),wk=curWeek(),ph=PHASES[curPhase()];
-  const dk=PROGRAM[d];
+  const wk=curWeek(),ph=PHASES[curPhase()];
   document.getElementById("hdrDay").textContent="Sem "+wk+" · "+ph.n;
-  document.getElementById("homeWeekLbl").textContent="Semaine "+wk+" · "+ph.n+" · "+ph.rir;
-  document.getElementById("homeSessName").textContent=dk.name;
-  document.getElementById("homeSessSub").textContent=dk.sub;
   // macros restantes
   const e=eatenToday(),m=S.macros;
   const items=[["kcal",m.kcal-e.kcal,m.kcal,"var(--lime)"],["Prot",m.p-e.p,m.p,"var(--prot)"],["Gluc",m.c-e.c,m.c,"var(--carb)"],["Lip",m.f-e.f,m.f,"var(--fat)"]];
@@ -758,7 +827,7 @@ function finishHome(){
   if(!done){toast("Coche au moins un exercice.");return;}
   S.logs.push({date:new Date(sessDate+"T12:00:00").toISOString(),day:"H",focus:g.focusKey,done});
   S.curSets["H"]={};activeDay=null;sessDate=todayKey();save();
-  toast("Séance maison enregistrée ✓ (n'avance pas le programme salle)");
+  toast("Séance maison enregistrée ✓ → retrouve-la dans l'onglet Histo");
   go("home");
 }
 /* ===== Séance personnalisée (✏️ Perso) ===== */
@@ -766,8 +835,9 @@ function renderCustomSession(){
   document.getElementById("trainHint").innerHTML=`✏️ <b>Séance personnalisée</b> — ajoute tes exercices (nom libre), tes séries, kg, reps et RIR. ${sessDate===todayKey()?"N'avance pas la rotation A/B/C.":"Enregistrée le "+dateLabel(sessDate)+"."}`;
   const cs=S.curSets["P"]||{};
   let html=S.customExos.map((exo,ei)=>{
+    const reco=computeReco(exo.n,{reps:null,start:0,sets:exo.sets});
     const sets=[...Array(exo.sets)].map((_,si)=>{
-      const v=cs[ei]&&cs[ei][si]?cs[ei][si]:{w:"",r:"",done:false};
+      const v=cs[ei]&&cs[ei][si]?cs[ei][si]:{w:reco.load||"",r:"",done:false};
       return `<div class="setrow">
         <div class="si">${si+1}</div>
         <input type="number" inputmode="decimal" placeholder="kg" value="${v.w}" oninput="setVal(${ei},${si},'w',this.value)">
@@ -776,7 +846,7 @@ function renderCustomSession(){
         <div class="chk ${v.done?'done':''}" onclick="toggleSet(${ei},${si},120)">✓</div>
       </div>`;
     }).join("");
-    const e1=S.e1rm[exo.n]?`<div class="e1rm">1RM estimé : ${S.e1rm[exo.n]} kg</div>`:"";
+    const e1=`<div class="e1rm">🎯 ${reco.reason}${S.e1rm[exo.n]?` · 1RM est. ${S.e1rm[exo.n]} kg`:''}</div>`;
     return `<div class="exo open" id="exo${ei}">
       <div class="head">
         <div onclick="document.getElementById('exo${ei}').classList.toggle('open')"><div class="nm">${exo.n}</div>
@@ -821,8 +891,7 @@ function finishCustom(){
   if(!logged){toast("Renseigne au moins une série complète.");return;}
   S.logs.push(sessLog);
   S.curSets["P"]={};sessDate=todayKey();save();
-  toast("Séance perso enregistrée ✓");
-  go("home");
+  showRecap(sessLog);
 }
 function workLoad(name,pct,start){
   // charge de travail: si on a un e1RM pour CETTE variante, applique le %; sinon la valeur start
@@ -832,6 +901,48 @@ function workLoad(name,pct,start){
     return Math.round((S.e1rm[name]*p)/2.5)*2.5;
   }
   return start;
+}
+/* ===== Moteur d'autorégulation : adapte la charge selon reps + RIR de la dernière séance ===== */
+function lastPerf(name){
+  for(let i=S.logs.length-1;i>=0;i--){
+    const lg=S.logs[i];if(!lg.exos)continue;
+    const ex=lg.exos.find(e=>e.n===name);
+    if(ex&&ex.sets&&ex.sets.length)return ex;
+  }
+  return null;
+}
+function repTarget(exo){const t=parseInt((""+(exo.reps||"")).split('-').pop(),10);return isNaN(t)?null:t;}
+function stepFor(load){return load>=60?5:2.5;}
+function computeReco(name,exo){
+  const target=repTarget(exo);
+  const last=lastPerf(name);
+  if(!last){
+    const base=(S.workLoads[name]!=null)?S.workLoads[name]:(exo.start||0);
+    return {load:base,reason:base?"Première fois ici — vise une charge où tu finis à RIR 1-2, l'app ajustera ensuite.":"Choisis ta charge ; l'app la mémorisera et l'ajustera."};
+  }
+  const ws=last.sets.filter(s=>s.w>0&&s.r>0);
+  if(!ws.length){const base=(S.workLoads[name]!=null)?S.workLoads[name]:(exo.start||0);return {load:base,reason:"Reprends ta dernière charge."};}
+  const work=ws[0].w;
+  const reps=ws.map(s=>s.r);
+  const rirs=ws.map(s=>s.rir).filter(r=>r!==""&&r!=null&&!isNaN(+r)).map(r=>+r);
+  const avgRir=rirs.length?rirs.reduce((a,b)=>a+b,0)/rirs.length:null;
+  const step=stepFor(work);
+  if(target==null) return {load:work,reason:`Dernière fois : ${reps.join("/")} reps à ${work} kg. Bats cette perf (reps ou charge).`};
+  const allTop=reps.every(r=>r>=target)&&ws.length>=Math.min(exo.sets||ws.length,ws.length);
+  const anyLow=reps.some(r=>r<target);
+  let load=work,reason;
+  if(avgRir!=null){
+    if(allTop&&avgRir>=2){load=work+2*step;reason=`Trop facile (${target}+ reps à RIR ${avgRir.toFixed(1)}) → +${2*step} kg.`;}
+    else if(allTop){load=work+step;reason=`${target} reps sur toutes les séries (RIR ${avgRir.toFixed(1)}) → +${step} kg.`;}
+    else if(anyLow&&avgRir<=0.5){load=Math.max(step,work-step);reason=`Trop lourd (échec sous ${target} reps) → −${step} kg, soigne la technique.`;}
+    else {reason=`Garde ${work} kg et ajoute des reps jusqu'à ${target} partout (RIR ${avgRir.toFixed(1)}), ensuite ça montera.`;}
+  } else {
+    if(allTop){load=work+step;reason=`${target} reps atteintes → +${step} kg (note ton RIR pour un réglage plus fin).`;}
+    else if(anyLow){load=Math.max(step,work-step);reason=`Reps sous ${target} → −${step} kg.`;}
+    else {reason=`Garde ${work} kg, vise ${target} reps sur chaque série.`;}
+  }
+  load=Math.round(load/2.5)*2.5;
+  return {load,reason};
 }
 function variantsOf(exo){
   return (exo.variants&&exo.variants.length)?exo.variants:[{n:exo.n,cue:exo.cue,vid:exo.vid,start:exo.start}];
@@ -865,7 +976,8 @@ function renderExos(){
     const av=activeVariant(activeDay,ei,exo);
     const vs=variantsOf(exo);
     const swapped=av.n!==vs[0].n;
-    const load=workLoad(av.n,exo.pct,av.start);
+    const reco=computeReco(av.n,exo);
+    const load=reco.load;
     const sets=[...Array(exo.sets)].map((_,si)=>{
       const v=cs[ei]&&cs[ei][si]?cs[ei][si]:{w:load||"",r:"",done:false};
       return `<div class="setrow">
@@ -876,7 +988,7 @@ function renderExos(){
         <div class="chk ${v.done?'done':''}" onclick="toggleSet(${ei},${si},${exo.rest})">✓</div>
       </div>`;
     }).join("");
-    const e1=S.e1rm[av.n]?`<div class="e1rm">1RM estimé : ${S.e1rm[av.n]} kg · charge de travail ${load} kg</div>`:`<div class="e1rm">Charge de départ proposée : ${load||'?'} kg</div>`;
+    const e1=`<div class="e1rm">🎯 ${reco.reason}${S.e1rm[av.n]?` · 1RM est. ${S.e1rm[av.n]} kg`:''}</div>`;
     const opts=vs.map((v,vi)=>`<button class="vbtn ${v.n===av.n?'on':''}" onclick="chooseVariant('${activeDay}',${ei},${vi})">${vi+1}. ${v.n}</button>`).join("")
       +`<button class="vbtn" onclick="customVariant('${activeDay}',${ei})">+ Autre exercice (saisir)…</button>`
       +(swapped?`<button class="vbtn" onclick="resetVariant('${activeDay}',${ei})">↺ Revenir à l'exercice prévu</button>`:"");
@@ -925,30 +1037,20 @@ function finishSession(){
     if(!rows.length)return;
     logged++;
     const av=activeVariant(d,ei,exo);
-    // meilleur e1RM (Epley)
     let best=0;
     rows.forEach(r=>{const e=(+r.w)*(1+(+r.r)/30);if(e>best)best=e;});
     best=Math.round(best);
-    const prev=S.e1rm[av.n]||0;
-    S.e1rm[av.n]=Math.max(prev,best);
-    // double progression: toutes séries au top de fourchette et RIR<=1 -> +2.5kg
-    const topRep=parseInt((""+exo.reps).split('-').pop())||parseInt(exo.reps)||0;
-    const allTop=rows.length>=exo.sets && rows.every(r=>(+r.r)>=topRep && (r.rir===""||r.rir==null|| (+r.rir)<=1));
-    const curLoad=parseFloat(rows[0].w)||workLoad(av.n,exo.pct,av.start);
-    if(allTop && topRep>0){S.workLoads[av.n]=curLoad+2.5;}
-    else {S.workLoads[av.n]=curLoad;}
-    sessLog.exos.push({n:av.n,sets:rows.map(r=>({w:+r.w,r:+r.r,rir:r.rir})),e1rm:best,nextLoad:S.workLoads[av.n]});
+    S.e1rm[av.n]=Math.max(S.e1rm[av.n]||0,best);
+    sessLog.exos.push({n:av.n,sets:rows.map(r=>({w:+r.w,r:+r.r,rir:r.rir})),e1rm:best});
   });
   if(!logged){toast("Renseigne au moins une série complète.");return;}
   S.logs.push(sessLog);
   S.curSets[d]={};
   const past=sessDate!==todayKey();
-  if(!past)S.sessionCount++;   // back-log : ne pas décaler la rotation
-  activeDay=null;
-  sessDate=todayKey();
+  if(!past){S.sessionCount++;S.nextDay=NEXT[d]||S.nextDay;}
+  activeDay=null;sessDate=todayKey();
   save();
-  toast(past?"Séance passée enregistrée ✓ (rotation inchangée)":"Séance enregistrée · charges ajustées ✓");
-  go("home");
+  showRecap(sessLog);
 }
 
 /* ========= TIMER ========= */
@@ -1379,6 +1481,7 @@ function modalOk(){
 }
 
 /* ========= INIT ========= */
+if(!S.nextDay)S.nextDay=["A","B","C"][(S.sessionCount||0)%3];
 if(!S.macros||!S.macros.kcal){S.macros=calcMacros(S.profile);save();}
 renderHome();renderJSON();
 </script>
