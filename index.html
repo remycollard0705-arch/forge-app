@@ -115,6 +115,18 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
 .modal.on{display:flex}
 .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;width:100%;max-width:380px}
 .modal-title{font-family:Oswald;font-weight:600;font-size:17px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+/* Cartes repliables */
+details.card>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;-webkit-tap-highlight-color:transparent}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary h2{margin:0}
+details.card>summary .chev{color:var(--faint);font-size:13px;transition:transform .25s;flex:0 0 auto}
+details.card[open]>summary .chev{transform:rotate(180deg)}
+details.card>summary .hint{font-size:11px;color:var(--faint);font-weight:400;margin-left:auto;flex:0 0 auto}
+details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
+@keyframes accIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* Confetti */
+.cf{position:fixed;top:-12px;z-index:70;font-size:16px;pointer-events:none;animation:cfFall linear forwards}
+@keyframes cfFall{to{transform:translateY(105vh) rotate(540deg);opacity:.4}}
 </style>
 </head>
 <body>
@@ -173,16 +185,38 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
 
     <div class="card">
       <div class="row between"><h2 style="margin:0" id="nutDateLbl">Bilan du jour</h2><span class="tag lime" id="nutKcalLeft"></span></div>
+      <div id="nutGoalBanner"></div>
       <div class="macro-ring" id="nutMacros" style="margin-top:12px"></div>
     </div>
+
+    <details class="card">
+      <summary><h2>Activité / Sport du jour</h2><span class="hint">🏀 sport hors muscu</span><span class="chev">▼</span></summary>
+      <div class="acc-body">
+      <p class="note" style="margin-bottom:10px">N'ajoute PAS ta muscu (déjà comptée dans ta cible). Ajoute seulement le sport en plus : basket, foot, marche, piscine. Les kcal estimées s'ajoutent à ton objectif du jour.</p>
+      <div class="grid2">
+        <div><label>Activité</label>
+          <select id="actType">
+            <option value="basket_match">Basket (match)</option>
+            <option value="basket_entrainement">Basket (entraînement)</option>
+            <option value="foot_match">Foot (match)</option>
+            <option value="marche">Marche</option>
+            <option value="piscine">Piscine</option>
+          </select>
+        </div>
+        <div><label>Durée (min)</label><input id="actMin" type="number" inputmode="numeric" placeholder="ex. 90"></div>
+      </div>
+      <button class="btn btn-prim btn-block" style="margin-top:12px" onclick="addActivity()">Ajouter l'activité</button>
+      <div id="actList" style="margin-top:12px"></div>
+    </div></details>
 
     <div class="card">
       <div class="row between"><h2 style="margin:0">Bilan de la semaine</h2><span class="tag" id="weekRangeLbl"></span></div>
       <div id="weekSummary" style="margin-top:10px"></div>
     </div>
 
-    <div class="card">
-      <h2>Code-barres → macros auto</h2>
+    <details class="card">
+      <summary><h2>Code-barres → macros auto</h2><span class="hint">📷 scan produit</span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <div id="camWrap" style="display:none;margin-bottom:12px">
         <video id="cam" playsinline muted style="width:100%;border-radius:11px;background:#000"></video>
         <button class="btn btn-block btn-sm" style="margin-top:8px" onclick="stopCam()">Arrêter la caméra</button>
@@ -192,7 +226,7 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
         <button class="btn" style="flex:0 0 auto;padding:11px 13px" onclick="scanCam()">📷</button>
       </div>
       <button class="btn btn-prim btn-block" onclick="lookupBarcode()">Chercher le produit</button>
-      <p class="note" id="bcMsg" style="margin-top:8px">Source : OpenFoodFacts (connexion internet requise).</p>
+      <p class="note" id="bcMsg" style="margin-top:8px">Sources : OpenFoodFacts, puis USDA en secours (connexion requise).</p>
 
       <!-- Preview du produit scanné : caché tant qu'aucun produit -->
       <div id="bcProduct" style="display:none;margin-top:14px">
@@ -206,17 +240,19 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
         <div class="macro-ring" id="bcPreview" style="margin:10px 0 12px"></div>
         <button class="btn btn-prim btn-block" onclick="addFromBarcode()">Ajouter au journal</button>
       </div>
-    </div>
+    </div></details>
 
-    <div class="card">
-      <h2>Base d'aliments</h2>
+    <details class="card">
+      <summary><h2>Base d'aliments</h2><span class="hint">🔎 recherche rapide</span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <input id="dbSearch" placeholder="Rechercher (riz, poulet, pain…)" oninput="renderDbResults()">
       <div id="dbResults" style="margin-top:10px"></div>
       <button class="btn btn-block btn-sm" id="offBtn" style="margin-top:8px;display:none" onclick="offTextSearch()">🔎 Chercher aussi en ligne (produits de marque)</button>
-    </div>
+    </div></details>
 
-    <div class="card">
-      <h2>Composer un repas (ex : sandwich)</h2>
+    <details class="card">
+      <summary><h2>Composer un repas (ex : sandwich)</h2><span class="hint">🥪 multi-ingrédients</span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <p class="note" style="margin-bottom:10px">Empile tes ingrédients avec une quantité estimée en grammes, l'app additionne. Estimation à ±20-30 % selon la précision de tes grammages.</p>
       <input id="mealSearch" placeholder="Ajouter un ingrédient…" oninput="renderMealSearch()">
       <div id="mealSearchRes" style="margin-top:8px"></div>
@@ -224,16 +260,18 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
       <div id="mealTotal"></div>
       <input id="mealName" placeholder="Nom du repas (ex : Sandwich poulet)" style="margin-top:10px">
       <button class="btn btn-prim btn-block" style="margin-top:10px" onclick="addMealToJournal()">Ajouter le repas au journal</button>
-    </div>
+    </div></details>
 
-    <div class="card">
-      <h2>Mes aliments enregistrés</h2>
+    <details class="card">
+      <summary><h2>Mes aliments enregistrés</h2><span class="hint" id="libCount"></span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <input id="libSearch" placeholder="Rechercher un aliment…" oninput="renderLib()">
       <div id="libList" style="margin-top:10px"></div>
-    </div>
+    </div></details>
 
-    <div class="card">
-      <h2>Ajouter au journal</h2>
+    <details class="card">
+      <summary><h2>Ajouter au journal</h2><span class="hint">✍️ saisie manuelle</span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <label>Aliment</label><input id="fName" placeholder="ex : Poulet">
       <label style="margin-top:10px">Quantité (g) — les macros ci-dessous valent pour cette quantité</label>
       <input id="fGrams" type="number" inputmode="numeric" value="100">
@@ -246,7 +284,7 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
         <div><label>Lipides (g)</label><input id="fF" type="number" inputmode="numeric" placeholder="g"></div>
       </div>
       <button class="btn btn-prim btn-block" style="margin-top:12px" onclick="addFood()">Ajouter au journal du jour</button>
-    </div>
+    </div></details>
 
     <div class="card">
       <h2 id="journalLbl">Journal</h2>
@@ -298,6 +336,46 @@ textarea{font-family:inherit;font-size:13px;background:var(--surface2);border:1p
       </div>
       <button class="btn btn-prim btn-block" style="margin-top:12px" onclick="addInbody()">Enregistrer la mesure</button>
       <p class="note" style="margin-top:8px">Graphiques et conseils se recalculent automatiquement. Ton poids et tes macros se mettent à jour avec la dernière mesure.</p>
+    </div>
+
+    <div class="card">
+      <div class="row between"><h2 style="margin:0">Prise de sang</h2><span class="tag" id="bloodDate"></span></div>
+      <div class="callout warn" style="margin-top:10px">⚕️ Analyse informative — je ne suis pas médecin. Les valeurs hors norme ci-dessous, surtout les cellules sanguines, doivent être discutées avec ton médecin (Dr Dubois).</div>
+      <div id="bloodAnalysis"></div>
+    </div>
+
+    <div class="card">
+      <h2>Compléments conseillés</h2>
+      <div id="bloodSupp"></div>
+    </div>
+
+    <div class="card">
+      <h2>Suivi des marqueurs (évolution)</h2>
+      <div id="bloodTrack"></div>
+      <div class="hr"></div>
+      <div class="eyebrow" style="margin-bottom:8px">Ajouter une nouvelle prise de sang</div>
+      <div class="grid2">
+        <div><label>Date</label><input id="blDate" type="date"></div>
+        <div><label>Vit. D (ng/ml)</label><input id="bl_vitd" type="number" step="0.1" inputmode="decimal"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>CRP (mg/l)</label><input id="bl_crp" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label>Globules blancs</label><input id="bl_wbc" type="number" step="0.01" inputmode="decimal"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Plaquettes</label><input id="bl_platelets" type="number" inputmode="numeric"></div>
+        <div><label>Ferritine (µg/l)</label><input id="bl_ferritin" type="number" inputmode="numeric"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>HDL (mg/dl)</label><input id="bl_hdl" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label>LDL (mg/dl)</label><input id="bl_ldl" type="number" inputmode="numeric"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Triglycérides</label><input id="bl_tg" type="number" inputmode="numeric"></div>
+        <div><label>Glycémie (mg/dl)</label><input id="bl_glucose" type="number" inputmode="numeric"></div>
+      </div>
+      <button class="btn btn-prim btn-block" style="margin-top:12px" onclick="addBlood()">Enregistrer la prise de sang</button>
+      <p class="note" style="margin-top:8px">Renseigne au moins les marqueurs que tu veux suivre dans le temps. Les autres restent vides.</p>
     </div>
     <div class="card">
       <h2>Profil & hypothèses (éditable)</h2>
@@ -588,7 +666,18 @@ const FOODDB=[
  {n:"Jus d'orange",kcal:45,p:0.7,c:10,f:0.2},{n:"Soda cola",kcal:42,p:0,c:11,f:0},{n:"Bière",kcal:43,p:0.5,c:3.6,f:0},{n:"Vin rouge",kcal:85,p:0.1,c:2.6,f:0},
  {n:"Café noir",kcal:2,p:0.1,c:0,f:0},{n:"Lait d'amande non sucré",kcal:13,p:0.4,c:0.3,f:1.1},{n:"Whey (poudre)",kcal:400,p:80,c:8,f:6},{n:"Shake protéiné préparé",kcal:50,p:10,c:2,f:1},
  {n:"Tofu",kcal:144,p:15,c:3,f:9},{n:"Tempeh",kcal:192,p:19,c:8,f:11},
- {n:"Pizza margherita",kcal:250,p:11,c:30,f:9},{n:"Frites cuites",kcal:312,p:3.4,c:41,f:15},{n:"Nuggets",kcal:290,p:15,c:16,f:18},{n:"Riz au lait",kcal:130,p:3,c:22,f:3}
+ {n:"Pizza margherita",kcal:250,p:11,c:30,f:9},{n:"Frites cuites",kcal:312,p:3.4,c:41,f:15},{n:"Nuggets",kcal:290,p:15,c:16,f:18},{n:"Riz au lait",kcal:130,p:3,c:22,f:3},
+ {n:"Sardines à l'huile égouttées",kcal:208,p:25,c:0,f:12},{n:"Maquereau cuit",kcal:262,p:24,c:0,f:18},{n:"Truite cuite",kcal:148,p:21,c:0,f:6.6},{n:"Colin/lieu cuit",kcal:92,p:20,c:0,f:1},{n:"Hareng fumé",kcal:217,p:23,c:0,f:14},{n:"Moules cuites",kcal:112,p:17,c:4,f:2.8},{n:"Surimi",kcal:95,p:8,c:13,f:1},
+ {n:"Poulet rôti avec peau",kcal:239,p:27,c:0,f:14},{n:"Agneau gigot cuit",kcal:230,p:26,c:0,f:14},{n:"Veau escalope cuite",kcal:172,p:31,c:0,f:5},{n:"Merguez cuite",kcal:280,p:16,c:1,f:24},{n:"Chipolata cuite",kcal:300,p:15,c:1,f:26},{n:"Saucisson sec",kcal:410,p:26,c:2,f:33},{n:"Chorizo",kcal:455,p:24,c:2,f:38},{n:"Salami",kcal:425,p:22,c:1,f:37},{n:"Filet américain préparé",kcal:190,p:16,c:2,f:13},{n:"Boudin noir cuit",kcal:280,p:14,c:6,f:22},{n:"Blanc de dinde (tranche)",kcal:105,p:20,c:1,f:2},
+ {n:"Gouda",kcal:356,p:25,c:2,f:27},{n:"Fromage de chèvre",kcal:290,p:19,c:2,f:23},{n:"Ricotta",kcal:150,p:9,c:4,f:11},{n:"Brie",kcal:334,p:21,c:0.5,f:28},{n:"Camembert",kcal:300,p:20,c:0.5,f:24},{n:"Mascarpone",kcal:435,p:4.6,c:4.3,f:44},{n:"Boursin ail & fines herbes",kcal:405,p:7,c:2,f:41},{n:"Lait entier",kcal:65,p:3.3,c:4.8,f:3.6},{n:"Boisson soja nature",kcal:42,p:3.7,c:2,f:2.2},
+ {n:"Muesli",kcal:380,p:10,c:64,f:8},{n:"Granola",kcal:460,p:10,c:56,f:20},{n:"Corn flakes",kcal:378,p:7,c:84,f:0.9},{n:"Brioche",kcal:375,p:8,c:52,f:15},{n:"Pain aux céréales",kcal:260,p:10,c:43,f:5},{n:"Pistolet blanc",kcal:280,p:9,c:55,f:2},{n:"Galette de riz",kcal:387,p:8,c:82,f:3},{n:"Cracottes",kcal:380,p:11,c:72,f:4.5},
+ {n:"Poire",kcal:57,p:0.4,c:15,f:0.1},{n:"Pêche",kcal:39,p:0.9,c:10,f:0.3},{n:"Abricot",kcal:48,p:1.4,c:11,f:0.4},{n:"Cerises",kcal:63,p:1.1,c:16,f:0.2},{n:"Melon",kcal:34,p:0.8,c:8,f:0.2},{n:"Pastèque",kcal:30,p:0.6,c:8,f:0.2},{n:"Clémentine",kcal:47,p:0.9,c:12,f:0.2},{n:"Framboises",kcal:52,p:1.2,c:12,f:0.7},{n:"Raisins secs",kcal:299,p:3.1,c:79,f:0.5},{n:"Figues sèches",kcal:249,p:3.3,c:64,f:0.9},{n:"Compote sans sucre ajouté",kcal:55,p:0.3,c:13,f:0.2},
+ {n:"Chou-fleur cuit",kcal:23,p:1.8,c:4,f:0.5},{n:"Poireau cuit",kcal:31,p:1,c:7,f:0.2},{n:"Betterave cuite",kcal:44,p:1.7,c:10,f:0.2},{n:"Asperges cuites",kcal:22,p:2.4,c:4,f:0.2},{n:"Chicon (endive)",kcal:17,p:0.9,c:4,f:0.1},{n:"Potiron cuit",kcal:26,p:1,c:6,f:0.1},{n:"Céleri",kcal:16,p:0.7,c:3,f:0.2},{n:"Olives vertes",kcal:145,p:1,c:4,f:15},{n:"Cornichons",kcal:14,p:0.6,c:2.5,f:0.1},{n:"Soupe de légumes",kcal:35,p:1.5,c:6,f:0.6},
+ {n:"Pesto",kcal:460,p:5,c:6,f:46},{n:"Sauce tomate",kcal:50,p:1.5,c:8,f:1.5},{n:"Sauce andalouse",kcal:520,p:1,c:9,f:53},{n:"Crème légère 15%",kcal:170,p:2.5,c:4,f:15},{n:"Guacamole",kcal:155,p:2,c:8,f:13},
+ {n:"Noisettes",kcal:628,p:15,c:17,f:61},{n:"Pistaches",kcal:562,p:20,c:28,f:45},{n:"Graines de chia",kcal:486,p:17,c:42,f:31},{n:"Graines de courge",kcal:559,p:30,c:11,f:49},{n:"Mélange fruits secs",kcal:480,p:14,c:40,f:30},
+ {n:"Gaufre de Liège",kcal:410,p:6,c:52,f:20},{n:"Spéculoos",kcal:485,p:5,c:73,f:19},{n:"Pain d'épices",kcal:330,p:4,c:73,f:2.5},{n:"Cookie",kcal:490,p:5,c:64,f:24},{n:"Barre céréales",kcal:420,p:6,c:65,f:14},{n:"Glace vanille",kcal:200,p:3.5,c:24,f:10},{n:"Pop-corn nature",kcal:387,p:12,c:78,f:4.5},{n:"Bonbons gélifiés",kcal:340,p:6,c:77,f:0.2},{n:"Chocolat noir 85%",kcal:590,p:10,c:22,f:50},
+ {n:"Jus de pomme",kcal:46,p:0.1,c:11,f:0.1},{n:"Soda zéro",kcal:1,p:0,c:0,f:0},{n:"Vin blanc sec",kcal:82,p:0.1,c:2.6,f:0},{n:"Smoothie fruits",kcal:55,p:0.6,c:13,f:0.2},{n:"Boisson isotonique",kcal:26,p:0,c:6,f:0},
+ {n:"Lasagnes bolognaise",kcal:150,p:8,c:14,f:7},{n:"Quiche lorraine",kcal:320,p:11,c:22,f:21},{n:"Croque-monsieur",kcal:290,p:14,c:26,f:14},{n:"Hamburger (fast-food)",kcal:255,p:13,c:30,f:9},{n:"Kebab (pita garnie)",kcal:215,p:13,c:18,f:10},{n:"Sushi saumon (pièce ~30g)",kcal:145,p:6,c:26,f:2},{n:"Carbonnade flamande",kcal:145,p:14,c:6,f:7},{n:"Boulets sauce liégeoise",kcal:175,p:11,c:9,f:11},{n:"Vol-au-vent",kcal:160,p:11,c:8,f:9},{n:"Purée de pommes de terre",kcal:105,p:2,c:15,f:4}
 ]; // rotation, l'index réel suit le compteur de séances
 const PHASES=[
   {n:"Accumulation",w:"S1-4",rir:"2-3 RIR",desc:"Bases, technique, volume installé. Tu apprends les charges. RIR 2-3 (garde 2-3 reps en réserve)."},
@@ -634,11 +723,16 @@ function blank(){
     logs:[],                // séances terminées
     foods:{},               // {YYYY-MM-DD:[{n,kcal,p,c,f}]}
     library:[],             // aliments réutilisables [{n,kcal,p,c,f}]
-    inbody:[                // mesures InBody (tes 2 mesures réelles pré-chargées)
-      {date:"2025-05-29",kg:85.4,smm:40.5,fatkg:14.9,fatpct:17.5,bmr:null},
-      {date:"2026-03-07",kg:83.0,smm:40.7,fatkg:11.9,fatpct:14.4,bmr:1905}
+    inbody:[                // mesures InBody réelles pré-chargées
+      {date:"2025-05-29",kg:85.4,smm:40.5,fatkg:14.9,fatpct:17.5,bmr:1893},
+      {date:"2026-03-07",kg:83.0,smm:40.7,fatkg:11.9,fatpct:14.4,bmr:1905},
+      {date:"2026-06-21",kg:81.6,smm:40.5,fatkg:11.1,fatpct:13.6,bmr:1892}
+    ],
+    blood:[                 // prises de sang [{date, vals:{...}}]
+      {date:"2026-06-06",vals:{wbc:3.11,neutro:1.64,lympho:0.82,platelets:155,hct:49.6,crp:8.5,transfsat:21,ferritin:124,vitd:36.8,b12:358,tsh:2.42,glucose:85,creat:1.11,hdl:40.8,ldl:96,tg:109,chol:159}}
     ],
     weights:[],             // [{d, kg}]
+    activities:{},          // {date:[{type,min,kcal}]}
     curSets:{}              // saisie en cours
   };
 }
@@ -882,7 +976,7 @@ function editSessSet(i,ei,si,field,val){
   s[field]=field==='rir'?val:(+val||0);
   // recalcule e1RM de l'exercice
   const sets=S.logs[i].exos[ei].sets;
-  let best=0;sets.forEach(r=>{if(r.w&&r.r){const e=(+r.w)*(1+(+r.r)/30);if(e>best)best=e;}});
+  let best=0;sets.forEach(r=>{if(r.w&&r.r){const e=epley1RM(+r.w,+r.r,r.rir);if(e>best)best=e;}});
   S.logs[i].exos[ei].e1rm=Math.round(best);
   // met à jour le 1RM global si c'est le meilleur connu
   const name=S.logs[i].exos[ei].n;
@@ -1092,7 +1186,7 @@ function finishCustom(){
   S.customExos.forEach((exo,ei)=>{
     const rows=cs[ei]?Object.values(cs[ei]).filter(x=>x.w&&x.r):[];
     if(!rows.length)return;logged++;
-    let best=0;rows.forEach(r=>{const e=(+r.w)*(1+(+r.r)/30);if(e>best)best=e;});best=Math.round(best);
+    let best=0;rows.forEach(r=>{const e=epley1RM(+r.w,+r.r,r.rir);if(e>best)best=e;});best=Math.round(best);
     S.e1rm[exo.n]=Math.max(S.e1rm[exo.n]||0,best);
     sessLog.exos.push({n:exo.n,sets:rows.map(r=>({w:+r.w,r:+r.r,rir:r.rir})),e1rm:best});
   });
@@ -1121,33 +1215,51 @@ function lastPerf(name){
 }
 function repTarget(exo){const t=parseInt((""+(exo.reps||"")).split('-').pop(),10);return isNaN(t)?null:t;}
 function stepFor(load){return load>=60?5:2.5;}
+function epley1RM(w,r,rir){const extra=(rir!==""&&rir!=null&&!isNaN(+rir))?+rir:0;return w*(1+(r+extra)/30);}
+function bestE1RM(sets){let b=0;sets.forEach(s=>{if(s.w>0&&s.r>0){const e=epley1RM(+s.w,+s.r,s.rir);if(e>b)b=e;}});return b;}
 function computeReco(name,exo){
   const target=repTarget(exo);
   const last=lastPerf(name);
-  if(!last){
+  const ws=last?last.sets.filter(s=>s.w>0&&s.r>0):[];
+  const pctMatch=exo.pct&&exo.pct.indexOf("%")>=0;
+
+  // ===== Exercices avec %1RM défini : charge = 1RM estimé × % cible =====
+  if(pctMatch){
+    const pct=parseFloat(exo.pct.replace(/[^0-9.]/g,''))/100;
+    // 1RM estimé : priorité à la dernière séance (RIR-ajusté), sinon stocké
+    let e1=ws.length?bestE1RM(ws):0;
+    if(!e1)e1=S.e1rm[name]||0;
+    if(e1){
+      const load=Math.round((e1*pct)/2.5)*2.5;
+      const src=ws.length?`d'après ta dernière séance (${ws[0].w} kg × ${ws.map(s=>s.r).join("/")} reps${ws.some(s=>s.rir!==""&&s.rir!=null)?", RIR noté":""})`:"estimé";
+      return {load,reason:`1RM est. <b>${Math.round(e1)} kg</b> ${src} × ${Math.round(pct*100)}% → <b>${load} kg</b> pour ${target} reps.`};
+    }
     const base=(S.workLoads[name]!=null)?S.workLoads[name]:(exo.start||0);
-    return {load:base,reason:base?"Première fois ici — vise une charge où tu finis à RIR 1-2, l'app ajustera ensuite.":"Choisis ta charge ; l'app la mémorisera et l'ajustera."};
+    return {load:base,reason:`Fais une 1ʳᵉ séance en notant tes séries + RIR : l'app calculera ensuite la charge au % exact de ton 1RM.`};
   }
-  const ws=last.sets.filter(s=>s.w>0&&s.r>0);
-  if(!ws.length){const base=(S.workLoads[name]!=null)?S.workLoads[name]:(exo.start||0);return {load:base,reason:"Reprends ta dernière charge."};}
-  const work=ws[0].w;
-  const reps=ws.map(s=>s.r);
+
+  // ===== Exercices d'isolation (pas de %1RM) : double progression reps/RIR =====
+  if(!last||!ws.length){
+    const base=(S.workLoads[name]!=null)?S.workLoads[name]:(exo.start||0);
+    return {load:base,reason:base?"Vise une charge où tu finis à RIR 1-2.":"Choisis ta charge ; l'app la mémorisera."};
+  }
+  const work=ws[0].w,reps=ws.map(s=>s.r);
   const rirs=ws.map(s=>s.rir).filter(r=>r!==""&&r!=null&&!isNaN(+r)).map(r=>+r);
   const avgRir=rirs.length?rirs.reduce((a,b)=>a+b,0)/rirs.length:null;
   const step=stepFor(work);
-  if(target==null) return {load:work,reason:`Dernière fois : ${reps.join("/")} reps à ${work} kg. Bats cette perf (reps ou charge).`};
+  if(target==null)return {load:work,reason:`Dernière fois : ${reps.join("/")} reps à ${work} kg. Bats cette perf.`};
   const allTop=reps.every(r=>r>=target)&&ws.length>=Math.min(exo.sets||ws.length,ws.length);
   const anyLow=reps.some(r=>r<target);
   let load=work,reason;
   if(avgRir!=null){
     if(allTop&&avgRir>=2){load=work+2*step;reason=`Trop facile (${target}+ reps à RIR ${avgRir.toFixed(1)}) → +${2*step} kg.`;}
-    else if(allTop){load=work+step;reason=`${target} reps sur toutes les séries (RIR ${avgRir.toFixed(1)}) → +${step} kg.`;}
-    else if(anyLow&&avgRir<=0.5){load=Math.max(step,work-step);reason=`Trop lourd (échec sous ${target} reps) → −${step} kg, soigne la technique.`;}
-    else {reason=`Garde ${work} kg et ajoute des reps jusqu'à ${target} partout (RIR ${avgRir.toFixed(1)}), ensuite ça montera.`;}
+    else if(allTop){load=work+step;reason=`${target} reps partout (RIR ${avgRir.toFixed(1)}) → +${step} kg.`;}
+    else if(anyLow&&avgRir<=0.5){load=Math.max(step,work-step);reason=`Trop lourd (échec sous ${target} reps) → −${step} kg.`;}
+    else {reason=`Garde ${work} kg, ajoute des reps jusqu'à ${target} partout.`;}
   } else {
-    if(allTop){load=work+step;reason=`${target} reps atteintes → +${step} kg (note ton RIR pour un réglage plus fin).`;}
+    if(allTop){load=work+step;reason=`${target} reps atteintes → +${step} kg (note ton RIR pour affiner).`;}
     else if(anyLow){load=Math.max(step,work-step);reason=`Reps sous ${target} → −${step} kg.`;}
-    else {reason=`Garde ${work} kg, vise ${target} reps sur chaque série.`;}
+    else {reason=`Garde ${work} kg, vise ${target} reps.`;}
   }
   load=Math.round(load/2.5)*2.5;
   return {load,reason};
@@ -1246,7 +1358,7 @@ function finishSession(){
     logged++;
     const av=activeVariant(d,ei,exo);
     let best=0;
-    rows.forEach(r=>{const e=(+r.w)*(1+(+r.r)/30);if(e>best)best=e;});
+    rows.forEach(r=>{const e=epley1RM(+r.w,+r.r,r.rir);if(e>best)best=e;});
     best=Math.round(best);
     S.e1rm[av.n]=Math.max(S.e1rm[av.n]||0,best);
     sessLog.exos.push({n:av.n,sets:rows.map(r=>({w:+r.w,r:+r.r,rir:r.rir})),e1rm:best});
@@ -1269,20 +1381,88 @@ function stopTimer(){clearInterval(tId);document.getElementById("timer").classLi
 function fmt(s){const m=Math.floor(s/60),r=s%60;return m+":"+(r<10?"0":"")+r;}
 
 /* ========= NUT ========= */
+const MET={basket_match:8.0,basket_entrainement:6.5,foot_match:9.0,marche:3.8,piscine:7.0};
+const ACT_LABEL={basket_match:"Basket (match)",basket_entrainement:"Basket (entraînement)",foot_match:"Foot (match)",marche:"Marche",piscine:"Piscine"};
+function actKcal(type,min){const w=S.profile.kg||81.6;const met=MET[type]||4;return Math.round((met-1)*w*(min/60));}
+function activityKcalOn(k){return (S.activities[k]||[]).reduce((a,x)=>a+(+x.kcal||0),0);}
+function dayGoal(k){const m=S.macros,ak=activityKcalOn(k);return {kcal:m.kcal+ak,p:m.p,c:m.c+Math.round(ak/4),f:m.f,extra:ak};}
 function renderNut(){
-  const m=S.macros, e=eatenOn(viewDate);
+  const e=eatenOn(viewDate),g=dayGoal(viewDate);
   document.getElementById("nutDate").value=viewDate;
   document.getElementById("mealSeg").innerHTML=MEALS.map(s=>`<button class="${s.id===activeMeal?'on':''}" style="flex:1 1 30%;min-width:0;padding:9px 4px;font-size:12px" onclick="setMeal('${s.id}')">${s.label}</button>`).join("");
   document.getElementById("nutDateLbl").textContent="Bilan · "+dateLabel(viewDate);
-  document.getElementById("nutKcalLeft").textContent=Math.max(0,Math.round(m.kcal-e.kcal))+" kcal restantes";
-  const items=[["kcal",e.kcal,m.kcal,"var(--lime)"],["Prot",e.p,m.p,"var(--prot)"],["Gluc",e.c,m.c,"var(--carb)"],["Lip",e.f,m.f,"var(--fat)"]];
+  document.getElementById("nutKcalLeft").textContent=Math.max(0,Math.round(g.kcal-e.kcal))+" kcal restantes";
+  const banner=document.getElementById("nutGoalBanner");
+  banner.innerHTML=g.extra>0
+    ?`<div class="callout" style="margin-top:10px">🏀 Sport du jour : <b>+${g.extra} kcal</b> dépensées → objectif ajusté à <b>${g.kcal} kcal</b> (base ${S.macros.kcal} + ${g.extra}). Mange ~${Math.round(g.extra/4)} g de glucides en plus, surtout autour de la séance.</div>`
+    :"";
+  const items=[["kcal",e.kcal,g.kcal,"var(--lime)"],["Prot",e.p,g.p,"var(--prot)"],["Gluc",e.c,g.c,"var(--carb)"],["Lip",e.f,g.f,"var(--fat)"]];
   document.getElementById("nutMacros").innerHTML=items.map(([lab,used,tot,col])=>{
     const pct=tot?Math.min(100,used/tot*100):0;
     return `<div class="m"><div class="lab">${lab}</div><div class="num" style="color:${col}">${Math.round(used)}</div><div class="sub">/ ${tot}</div><div class="mini-bar"><i style="width:${pct}%;background:${col}"></i></div></div>`;
   }).join("");
+  renderActivities();
   renderJournal();
   renderWeek();
   renderLib();renderDbResults();renderMeal();
+  checkProteinGoal(e,g);
+}
+/* ===== Fun : célébration cible protéines + streak ===== */
+let _pHit={}; // mémoire de session : {date:true} pour ne fêter qu'une fois
+function checkProteinGoal(e,g){
+  if(e.p>=g.p&&g.p>0&&!_pHit[viewDate]&&(S.foods[viewDate]||[]).length){
+    _pHit[viewDate]=true;
+    if(viewDate===todayKey()){confetti();toast("🎯 Cible protéines atteinte, machine !");}
+  }
+  if(e.p<g.p)_pHit[viewDate]=false;
+}
+function confetti(){
+  const em=["💪","🔥","🎯","⚡","🏀","💚"];
+  for(let i=0;i<22;i++){
+    const s=document.createElement("span");
+    s.className="cf";s.textContent=em[i%em.length];
+    s.style.left=Math.random()*100+"vw";
+    s.style.animationDuration=(1.4+Math.random()*1.4)+"s";
+    s.style.animationDelay=(Math.random()*.4)+"s";
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(),3200);
+  }
+}
+function loggedStreak(){
+  let n=0;const d=new Date(todayKey()+"T12:00:00");
+  if(!eatenOn(todayKey()).kcal)d.setDate(d.getDate()-1); // aujourd'hui pas encore loggé : on part d'hier
+  while(true){
+    const k=dkey(d);
+    if(eatenOn(k).kcal>0){n++;d.setDate(d.getDate()-1);}
+    else break;
+    if(n>365)break;
+  }
+  return n;
+}
+function renderActivities(){
+  const el=document.getElementById("actList");if(!el)return;
+  const arr=S.activities[viewDate]||[];
+  if(!arr.length){el.innerHTML='<p class="note">Aucune activité ce jour.</p>';return;}
+  el.innerHTML=arr.map((a,i)=>`<div class="food">
+    <div><div>${ACT_LABEL[a.type]||a.type} · ${a.min} min</div><div class="fk">≈ ${a.kcal} kcal dépensées</div></div>
+    <button class="del" onclick="delActivity(${i})">×</button>
+  </div>`).join("");
+}
+function addActivity(){
+  const type=document.getElementById("actType").value;
+  const min=+document.getElementById("actMin").value;
+  if(!min||min<=0){toast("Indique la durée en minutes.");return;}
+  const kcal=actKcal(type,min);
+  if(!S.activities[viewDate])S.activities[viewDate]=[];
+  S.activities[viewDate].push({type,min,kcal});
+  document.getElementById("actMin").value="";
+  save();renderNut();toast(`Activité ajoutée · +${kcal} kcal ✓`);
+}
+function delActivity(i){
+  if(!S.activities[viewDate])return;
+  S.activities[viewDate].splice(i,1);
+  if(!S.activities[viewDate].length)delete S.activities[viewDate];
+  save();renderNut();toast("Supprimé ✓");
 }
 function renderJournal(){
   document.getElementById("journalLbl").textContent="Journal · "+dateLabel(viewDate);
@@ -1313,7 +1493,9 @@ function renderWeek(){
     const col=d.e.kcal>m.kcal*1.05?"var(--fat)":(d.e.kcal>=m.kcal*0.9?"var(--lime)":"var(--blue)");
     return `<div style="flex:1;text-align:center;cursor:pointer" onclick="setViewDate('${d.k}')"><div style="height:64px;display:flex;align-items:flex-end"><div style="width:100%;height:${d.e.kcal?h:3}px;background:${d.e.kcal?col:'var(--surface2)'};border-radius:4px 4px 0 0;outline:${isView?'2px solid var(--txt)':'none'};outline-offset:1px"></div></div><div style="font-size:10px;color:${isToday?'var(--lime)':'var(--faint)'};font-family:Oswald">${dn[i]}</div></div>`;
   }).join("");
+  const stk=loggedStreak();
   document.getElementById("weekSummary").innerHTML=`
+    ${stk>=2?`<div class="callout" style="margin-bottom:10px">🔥 <b>${stk} jours</b> de suivi d'affilée. La régularité, c'est ça qui construit.</div>`:""}
     <div class="row" style="gap:4px;align-items:flex-end">${bars}</div>
     <div class="grid2" style="margin-top:12px">
       <div class="stat"><div class="k">Moy. kcal / j</div><div class="v">${Math.round(sum.kcal/n)}<small> / ${m.kcal}</small></div></div>
@@ -1345,6 +1527,7 @@ function upsertLib(f){
   if(i>=0)S.library[i]=e;else S.library.push(e);
 }
 function renderLib(){
+  const lc=document.getElementById("libCount");if(lc)lc.textContent=S.library.length?`${S.library.length} enregistré${S.library.length>1?"s":""}`:"vide";
   const el=document.getElementById("libList");if(!el)return;
   if(!S.library.length){el.innerHTML='<p class="note">Vide pour l\'instant. Chaque aliment ajouté au journal s\'enregistre ici, avec ses macros pour 100 g, réutilisable et ajustable.</p>';return;}
   const q=(document.getElementById("libSearch").value||"").toLowerCase();
@@ -1394,20 +1577,41 @@ function recomputeQty(){
   sl.value=Math.min(500,Math.max(5,v));
   renderBcPreview();
 }
+async function usdaLookup(code){
+  // USDA FoodData Central (fallback). DEMO_KEY = 30 requêtes/heure max, base surtout US.
+  const r=await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=DEMO_KEY&query=${encodeURIComponent(code)}&dataType=Branded&pageSize=5`);
+  const d=await r.json();
+  const clean=s=>(s||"").replace(/^0+/,"");
+  const it=(d.foods||[]).find(f=>clean(f.gtinUpc)===clean(code));
+  if(!it)return null;
+  const nut=name=>{const x=(it.foodNutrients||[]).find(n=>n.nutrientName===name&&n.unitName!=="KJ");return x?x.value:0;};
+  let kcal=nut("Energy");
+  if(!kcal){const kj=(it.foodNutrients||[]).find(n=>n.nutrientName==="Energy"&&n.unitName==="KJ");kcal=kj?kj.value/4.184:0;}
+  return {n:(it.description||"Produit")+(it.brandOwner?" · "+it.brandOwner:""),unit:"g",kcal,p:nut("Protein"),c:nut("Carbohydrate, by difference"),f:nut("Total lipid (fat)")};
+}
 async function lookupBarcode(){
   const code=(document.getElementById("bcCode").value||"").trim();
   const msg=document.getElementById("bcMsg");
   if(!code){toast("Entre un code-barres.");return;}
-  msg.textContent="Recherche en cours…";
+  msg.textContent="Recherche sur OpenFoodFacts…";
   document.getElementById("bcProduct").style.display="none";
   try{
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,nutriments,serving_quantity,serving_quantity_unit`);
-    const d=await r.json();
-    if(d.status!==1||!d.product){msg.textContent="Produit introuvable sur OpenFoodFacts. Saisis les macros à la main.";return;}
-    const nm=d.product.nutriments||{};
-    const unit=d.product.serving_quantity_unit||"g";
-    const name=(d.product.product_name||"Produit")+(d.product.brands?" · "+d.product.brands:"");
-    bcPer100={n:name,unit,kcal:nm["energy-kcal_100g"]||0,p:nm.proteins_100g||0,c:nm.carbohydrates_100g||0,f:nm.fat_100g||0};
+    let found=null;
+    try{
+      const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,nutriments,serving_quantity,serving_quantity_unit`);
+      const d=await r.json();
+      if(d.status===1&&d.product){
+        const nm=d.product.nutriments||{};
+        found={n:(d.product.product_name||"Produit")+(d.product.brands?" · "+d.product.brands:""),unit:d.product.serving_quantity_unit||"g",kcal:nm["energy-kcal_100g"]||0,p:nm.proteins_100g||0,c:nm.carbohydrates_100g||0,f:nm.fat_100g||0};
+      }
+    }catch(e){}
+    if(!found){
+      msg.textContent="Pas sur OpenFoodFacts… essai sur USDA (base US) 🇺🇸";
+      try{found=await usdaLookup(code);}catch(e){}
+    }
+    if(!found){msg.textContent="Introuvable sur OpenFoodFacts et USDA. Saisis les macros à la main (carte « Ajouter au journal »).";return;}
+    const {unit}=found,name=found.n;
+    bcPer100={n:name,unit,kcal:found.kcal,p:found.p,c:found.c,f:found.f};
     // pré-remplir à 100g (portion standard)
     document.getElementById("bcQty").value=100;
     document.getElementById("bcSlider").value=100;
@@ -1454,7 +1658,7 @@ function renderDbResults(){
   const q=(document.getElementById("dbSearch").value||"").toLowerCase().trim();
   document.getElementById("offBtn").style.display=q?"block":"none";
   const el=document.getElementById("dbResults");
-  if(!q){el.innerHTML='<p class="note">Tape un aliment (≈130 référencés) puis ajuste la quantité. Valeurs pour 100 g ; féculents et viandes = cuits.</p>';return;}
+  if(!q){el.innerHTML=`<p class="note">Tape un aliment (${FOODDB.length} référencés) puis ajuste la quantité. Valeurs pour 100 g ; féculents et viandes = cuits.</p>`;return;}
   const res=FOODDB.map((f,i)=>({f,i})).filter(o=>o.f.n.toLowerCase().includes(q)).slice(0,40);
   el.innerHTML=res.length?res.map(o=>
     `<div class="food"><div style="flex:1;cursor:pointer" onclick="loadToQtyDB(${o.i})"><div>${o.f.n}</div><div class="fk">${o.f.kcal} kcal · P${o.f.p} G${o.f.c} L${o.f.f} / 100 g</div></div></div>`
@@ -1558,7 +1762,7 @@ function inbodyAdvice(){
   let msg,cls="callout";
   if(dSmm>0&&dFat<=0){msg=`Recomp réussie : <b>+${dSmm} kg de muscle</b> et <b>${dFat} kg de gras</b>. C'est exactement la trajectoire vers la photo — ne change rien au surplus actuel.`;}
   else if(dSmm>0&&dFat>0&&dFat>=dSmm){msg=`Tu gagnes du muscle (+${dSmm} kg) mais plus de gras (+${dFat} kg). Surplus trop agressif → <b>retire ~200 kcal</b> (glucides) et vise +0,25 kg/sem max.`;cls="callout warn";}
-  else if(dSmm<=0&&dFat<0){msg=`Tu as séché (${dFat} kg gras) mais perdu du muscle (${dSmm} kg). Déficit/cardio trop fort ou protéines/charge insuffisantes → <b>monte les protéines à 2,2 g/kg et garde le travail lourd.</b>`;cls="callout warn";}
+  else if(dSmm<=0&&dFat<0){msg=`Tu sèches (${dFat} kg de gras) mais ton muscle stagne (${dSmm} kg) et ton poids descend (${dKg} kg) → <b>tu manges en dessous de ta cible</b>. Pour PRENDRE du muscle, il faut un léger surplus : vise +0,2 à +0,3 kg/sem. Monte les calories et garde les protéines à 2,2 g/kg.`;cls="callout warn";}
   else if(dSmm<=0&&dFat>=0){msg=`Muscle stagnant (${dSmm} kg) et gras qui ne baisse pas. Revois assiduité, surcharge progressive et précision des macros.`;cls="callout warn";}
   else{msg=`+${dSmm} kg muscle, ${dFat>=0?"+":""}${dFat} kg gras sur la période. Évolution correcte ; n'ajuste que si le gras grimpe.`;}
   return `<div class="${cls}">${msg}</div><p class="note">Sur <b>${days} j</b> : poids ${dKg>=0?"+":""}${dKg} kg · muscle ${dSmm>=0?"+":""}${dSmm} kg · gras ${dFat>=0?"+":""}${dFat} kg · TGC ${dPct>=0?"+":""}${dPct} pts.</p>`;
@@ -1589,6 +1793,130 @@ function addInbody(){
   S.weights.push({d:new Date(d).toISOString(),kg});
   ["ibKg","ibSmm","ibFatkg","ibFatpct","ibBmr"].forEach(id=>document.getElementById(id).value="");
   save();renderInbody();toast("Mesure enregistrée · graphiques à jour ✓");
+}
+/* ===== Analyse prise de sang ===== */
+const BLOOD_REF={
+  wbc:{label:"Globules blancs",unit:"10³/mm³",low:3.91,high:10.90,type:"range"},
+  neutro:{label:"Neutrophiles",unit:"10³/mm³",low:1.80,high:6.98,type:"range"},
+  lympho:{label:"Lymphocytes",unit:"10³/mm³",low:1.26,high:3.35,type:"range"},
+  platelets:{label:"Plaquettes",unit:"10³/mm³",low:166,high:308,type:"range"},
+  hct:{label:"Hématocrite",unit:"%",low:40,high:49.4,type:"range"},
+  crp:{label:"CRP (inflammation)",unit:"mg/l",high:5,type:"max"},
+  transfsat:{label:"Saturation transferrine",unit:"%",low:30,high:40,type:"range"},
+  ferritin:{label:"Ferritine",unit:"µg/l",low:22,high:322,type:"range"},
+  vitd:{label:"Vitamine D",unit:"ng/ml",low:30,high:100,type:"range"},
+  b12:{label:"Vitamine B12",unit:"ng/l",low:200,type:"min"},
+  tsh:{label:"TSH (thyroïde)",unit:"mUI/l",low:0.55,high:4.78,type:"range"},
+  glucose:{label:"Glycémie à jeun",unit:"mg/dl",low:74,high:100,type:"range"},
+  creat:{label:"Créatinine",unit:"mg/dl",low:0.72,high:1.18,type:"range"},
+  hdl:{label:"HDL (bon cholestérol)",unit:"mg/dl",low:40,type:"min"},
+  ldl:{label:"LDL",unit:"mg/dl",high:116,type:"max"},
+  tg:{label:"Triglycérides",unit:"mg/dl",high:150,type:"max"},
+  chol:{label:"Cholestérol total",unit:"mg/dl",type:"info"}
+};
+const BLOOD_NOTE={
+  wbc:"Bas — souvent transitoire (virus récent, fatigue). À recontrôler avec ton médecin.",
+  neutro:"Bas — surveille les infections ; à faire suivre médicalement.",
+  lympho:"Bas — fréquent après un virus ; recontrôle conseillé.",
+  platelets:"Légèrement bas — à surveiller au prochain contrôle.",
+  hct:"Légèrement haut — souvent déshydratation. Bois suffisamment, surtout autour des séances.",
+  crp:"Inflammation présente. Gère ta récup (sommeil, ne va pas à l'échec partout). Si ça persiste, médecin.",
+  transfsat:"Bas malgré une ferritine normale — pas une carence en fer. NE te supplémente PAS en fer sans avis médical.",
+  vitd:"Suffisante mais basse (optimal 40-60). Une supplémentation d'entretien aide, surtout en Belgique l'hiver.",
+  hdl:"Juste au-dessus du seuil. Oméga-3, activité et bons lipides peuvent l'améliorer.",
+  ldl:"À surveiller selon ton risque CV global.",
+  glucose:"À surveiller."
+};
+function classifyMarker(key,v){
+  const r=BLOOD_REF[key];if(!r||v==null||v==="")return null;
+  v=+v;
+  if(r.type==="info")return {status:"info"};
+  if(r.type==="max")return {status:v<=r.high?"ok":"high"};
+  if(r.type==="min")return {status:v>=r.low?"ok":"low"};
+  if(v<r.low)return {status:"low"};
+  if(v>r.high)return {status:"high"};
+  return {status:"ok"};
+}
+function rangeText(r){
+  if(r.type==="max")return "< "+r.high+" "+r.unit;
+  if(r.type==="min")return "> "+r.low+" "+r.unit;
+  if(r.type==="info")return r.unit;
+  return r.low+"–"+r.high+" "+r.unit;
+}
+function renderBlood(){
+  const da=document.getElementById("bloodDate");
+  const an=document.getElementById("bloodAnalysis");
+  if(!an)return;
+  if(!S.blood||!S.blood.length){an.innerHTML='<p class="note">Aucune prise de sang enregistrée.</p>';if(da)da.textContent="";renderSupp([]);renderTrack();return;}
+  const panel=S.blood[S.blood.length-1];
+  if(da)da.textContent=shortDate(panel.date);
+  const good=[],watch=[];
+  Object.keys(BLOOD_REF).forEach(key=>{
+    const v=panel.vals[key];if(v==null||v==="")return;
+    const c=classifyMarker(key,v);if(!c)return;
+    const r=BLOOD_REF[key];
+    if(c.status==="ok"||c.status==="info"){if(c.status==="ok")good.push({key,v,r});}
+    else watch.push({key,v,r,status:c.status});
+  });
+  let html="";
+  if(watch.length){
+    html+='<div class="eyebrow" style="color:var(--red);margin:6px 0 8px">⚠ Points à surveiller</div>';
+    html+=watch.map(o=>`<div style="border:1px solid #5a2018;background:#2a1410;border-radius:11px;padding:11px;margin-bottom:8px">
+      <div class="row between"><b style="font-size:14px">${o.r.label}</b><span style="font-family:Oswald;color:${o.status==='high'?'var(--fat)':'var(--red)'}">${o.v} ${o.r.unit} ${o.status==='high'?'↑':'↓'}</span></div>
+      <div class="note" style="margin-top:4px">Norme : ${rangeText(o.r)}. ${BLOOD_NOTE[o.key]||""}</div>
+    </div>`).join("");
+  }
+  if(good.length){
+    html+='<div class="eyebrow" style="color:var(--lime);margin:12px 0 8px">✓ Points positifs</div>';
+    html+='<div style="display:flex;flex-wrap:wrap;gap:6px">'+good.map(o=>
+      `<span class="tag lime" style="font-size:11px">${o.r.label} ${o.v}${o.r.unit==='%'?'%':''}</span>`).join("")+'</div>';
+  }
+  an.innerHTML=html;
+  renderSupp(watch);
+  renderTrack();
+}
+function renderSupp(watch){
+  const el=document.getElementById("bloodSupp");if(!el)return;
+  const w=watch.map(o=>o.key);
+  const supp=[];
+  supp.push(["Créatine monohydrate","3-5 g/jour, tous les jours","Le complément le plus prouvé pour le muscle, la force et l'explosivité — parfait aussi pour le basket. (Fait monter légèrement la créatinine sanguine : normal, sans danger.)","var(--lime)"]);
+  if(w.includes("vitd")||true)supp.push(["Vitamine D3","1000-2000 UI/jour","Ta vit. D (36,8) est correcte mais basse ; en Belgique, peu de soleil l'hiver. Vise 40-60 ng/ml.","var(--lime)"]);
+  supp.push(["Protéine en poudre (whey)","20-40 g si besoin","Outil pratique pour atteindre tes ~180 g de protéines/jour, surtout que tu manges actuellement en dessous de ta cible.","var(--blue)"]);
+  if(w.includes("crp")||w.includes("hdl"))supp.push(["Oméga-3 (EPA/DHA)","2 g/jour","Soutient la récupération, peut aider ta CRP (inflammation) et ton HDL un peu juste.","var(--blue)"]);
+  supp.push(["À ÉVITER : fer","—","Ta ferritine (124) est normale : pas de carence. Ne prends PAS de fer sans avis médical, c'est nocif sans déficit avéré.","var(--red)"]);
+  el.innerHTML=supp.map(([n,dose,why,col])=>`<div style="border-top:1px solid var(--line);padding:10px 0">
+    <div class="row between"><b style="font-size:14px;color:${col}">${n}</b><span class="tag">${dose}</span></div>
+    <div class="note" style="margin-top:4px">${why}</div>
+  </div>`).join("")+'<p class="note" style="margin-top:10px">Ce sont des pistes générales, pas une prescription. Valide avec ton médecin, surtout vu tes cellules sanguines basses.</p>';
+}
+function renderTrack(){
+  const el=document.getElementById("bloodTrack");if(!el)return;
+  if(!S.blood||S.blood.length<1){el.innerHTML='<p class="note">Pas encore de données.</p>';return;}
+  const keys=["vitd","crp","wbc","platelets","ferritin","hdl","ldl","tg","glucose"];
+  const rows=keys.filter(k=>S.blood.some(p=>p.vals[k]!=null&&p.vals[k]!=="")).map(k=>{
+    const r=BLOOD_REF[k];
+    const hist=S.blood.filter(p=>p.vals[k]!=null&&p.vals[k]!=="").map(p=>({d:p.date,v:p.vals[k]}));
+    const cells=hist.map(h=>{
+      const c=classifyMarker(k,h.v),col=c&&c.status==="ok"?"var(--lime)":c&&c.status==="info"?"var(--muted)":"var(--red)";
+      return `<span style="color:${col};font-family:Oswald;font-weight:600">${h.v}</span> <span style="font-size:9px;color:var(--faint)">${shortDate(h.d)}</span>`;
+    }).join(" → ");
+    return `<div style="border-top:1px solid var(--line);padding:8px 0">
+      <div style="font-size:12px;color:var(--muted)">${r.label} <span style="font-size:10px">(${rangeText(r)})</span></div>
+      <div style="margin-top:3px;font-size:13px">${cells}</div>
+    </div>`;
+  }).join("");
+  el.innerHTML=rows||'<p class="note">Renseigne des marqueurs pour suivre leur évolution.</p>';
+}
+function addBlood(){
+  const d=document.getElementById("blDate").value||todayKey();
+  const vals={};
+  [["bl_vitd","vitd"],["bl_crp","crp"],["bl_wbc","wbc"],["bl_platelets","platelets"],["bl_ferritin","ferritin"],["bl_hdl","hdl"],["bl_ldl","ldl"],["bl_tg","tg"],["bl_glucose","glucose"]].forEach(([id,key])=>{
+    const v=document.getElementById(id).value;if(v!=="")vals[key]=+v;
+  });
+  if(!Object.keys(vals).length){toast("Renseigne au moins un marqueur.");return;}
+  S.blood.push({date:d,vals});S.blood.sort((a,b)=>a.date.localeCompare(b.date));
+  ["bl_vitd","bl_crp","bl_wbc","bl_platelets","bl_ferritin","bl_hdl","bl_ldl","bl_tg","bl_glucose"].forEach(id=>document.getElementById(id).value="");
+  save();renderBlood();toast("Prise de sang enregistrée ✓");
 }
 function delFood(i){if(S.foods[viewDate]){S.foods[viewDate].splice(i,1);if(!S.foods[viewDate].length)delete S.foods[viewDate];}save();renderNut();}
 
@@ -1621,7 +1949,9 @@ function renderBody(){
   document.getElementById("adaptBody").innerHTML=html;
   renderWeightChart();
   renderInbody();
+  renderBlood();
   const idt=document.getElementById("ibDate");if(idt&&!idt.value)idt.value=todayKey();
+  const bld=document.getElementById("blDate");if(bld&&!bld.value)bld.value=todayKey();
 }
 function renderWeightChart(){
   const el=document.getElementById("wChart");
@@ -1742,6 +2072,21 @@ function modalOk(){
 
 /* ========= INIT ========= */
 if(!S.nextDay)S.nextDay=["A","B","C"][(S.sessionCount||0)%3];
+// migration : ajoute la mesure InBody du 21/06/2026 si absente
+if(!S.inbody)S.inbody=[];
+if(!S.inbody.some(x=>x.date==="2026-06-21")){
+  S.inbody.push({date:"2026-06-21",kg:81.6,smm:40.5,fatkg:11.1,fatpct:13.6,bmr:1892});
+  S.inbody.sort((a,b)=>a.date.localeCompare(b.date));
+  S.profile.kg=81.6;S.profile.bmr=1892;S.macros=calcMacros(S.profile);
+}
+// migration : ajoute la prise de sang du 06/06/2026 si absente
+if(!S.activities)S.activities={};
+if(!S.blood)S.blood=[];
+if(!S.blood.some(x=>x.date==="2026-06-06")){
+  S.blood.push({date:"2026-06-06",vals:{wbc:3.11,neutro:1.64,lympho:0.82,platelets:155,hct:49.6,crp:8.5,transfsat:21,ferritin:124,vitd:36.8,b12:358,tsh:2.42,glucose:85,creat:1.11,hdl:40.8,ldl:96,tg:109,chol:159}});
+  S.blood.sort((a,b)=>a.date.localeCompare(b.date));
+}
+save();
 if(!S.macros||!S.macros.kcal){S.macros=calcMacros(S.profile);save();}
 renderHome();renderJSON();
 </script>
