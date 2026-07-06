@@ -165,6 +165,7 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
     </div>
     <div class="callout" id="trainHint"></div>
     <div class="seg" id="daySeg"></div>
+    <div class="seg" id="lenSeg" style="margin-top:8px"></div>
     <div id="exoList"></div>
     <button class="btn btn-prim btn-block" style="margin-top:6px" onclick="finishSession()">Terminer & enregistrer la séance</button>
     <p class="note" style="text-align:center;margin-top:10px">L'app recalcule ton 1RM estimé (formule d'Epley) et ajuste les charges de la prochaine fois.</p>
@@ -720,6 +721,7 @@ function blank(){
     macros:{kcal:0,p:0,c:0,f:0},
     sessionCount:0,         // nb de séances terminées -> détermine semaine & phase
     nextDay:"A",            // prochaine séance à faire (suit le jour réellement réalisé)
+    sessLen:90,             // durée cible séance : 40 / 60 / 90 (complète)
     // 1RM estimés (Epley) depuis tes vrais logs mars-juin 2026
     e1rm:{
       "Développé couché barre":76,
@@ -1131,6 +1133,24 @@ let activeDay=null;
 let sessDate=todayKey();
 function setSessDate(k){sessDate=k;renderTrain();}
 function shiftSess(n){const d=new Date(sessDate+"T12:00:00");d.setDate(d.getDate()+n);sessDate=dkey(d);renderTrain();}
+function setSessLen(l){S.sessLen=l;save();renderTrain();}
+function shiftPct(p,delta){const m=(""+p).match(/(\d+)/);if(!m)return p;return (""+p).replace(m[1],""+Math.max(60,+m[1]+delta));}
+function timeAdjust(exos){
+  const L=+S.sessLen||90;
+  if(L>=90)return exos;
+  if(L===60)return exos.map(e=>{const c=Object.assign({},e);if(c.sets>3)c.sets--;c.rest=Math.max(60,c.rest-30);return c;});
+  // 40 min : 4 premiers exos (composés prioritaires), -1 série, repos serrés, reps↑/%↓ sur le lourd, RIR 1
+  return exos.slice(0,4).map(e=>{
+    const c=Object.assign({},e);
+    c.sets=Math.max(2,c.sets-1);
+    c.rest=c.rest>=150?120:c.rest>=120?90:60;
+    const rt=parseInt((""+c.reps).split('-').pop(),10);
+    if(rt&&rt<=6){c.reps="8";c.pct=shiftPct(c.pct,-7);}
+    c.rir="1";
+    return c;
+  });
+}
+function estDuration(exos){return Math.round(8+exos.reduce((t,e)=>t+e.sets*0.75+(e.sets-1)*e.rest/60+2,0));}
 function renderTrain(){
   if(!activeDay)activeDay=curDayKey();
   const sd=document.getElementById("sessDate");if(sd)sd.value=sessDate;
@@ -1142,10 +1162,14 @@ function renderTrain(){
     `<button class="${d===activeDay?'on':''}" onclick="setDay('${d}')">${d} <span style="font-weight:400;font-size:11px">${d===curDayKey()?" · auj.":""}</span></button>`).join("")
     +`<button class="${activeDay==='H'?'on':''}" onclick="setDay('H')">🏠</button>`
     +`<button class="${activeDay==='P'?'on':''}" onclick="setDay('P')">✏️</button>`;
-  if(activeDay==='H'){renderHomeSession();return;}
-  if(activeDay==='P'){renderCustomSession();return;}
+  if(activeDay==='H'){document.getElementById("lenSeg").innerHTML="";renderHomeSession();return;}
+  if(activeDay==='P'){document.getElementById("lenSeg").innerHTML="";renderCustomSession();return;}
+  const L=+S.sessLen||90;
+  document.getElementById("lenSeg").innerHTML=[[40,"⏱ ~40 min"],[60,"⏱ ~60 min"],[90,"Complète"]]
+    .map(([v,lab])=>`<button class="${v===L?'on':''}" onclick="setSessLen(${v})">${lab}</button>`).join("");
+  const adj=timeAdjust(PROGRAM[activeDay].exos);
   const ph=PHASES[curPhase()];
-  document.getElementById("trainHint").innerHTML=`<b>${PROGRAM[activeDay].sub}</b> — Phase ${ph.n} · vise <b>${ph.rir}</b>. Coche chaque série, l'app retient tes charges.`;
+  document.getElementById("trainHint").innerHTML=`<b>${PROGRAM[activeDay].sub}</b> — Phase ${ph.n} · vise <b>${ph.rir}</b> · durée estimée <b>~${estDuration(adj)} min</b>${L<90?` · mode raccourci : ${L===40?"4 exos, séries et repos réduits, reps↑ sur le lourd":"séries -1 sur le lourd, repos -30s"}`:""}. Coche chaque série, l'app retient tes charges.`;
   renderExos();
 }
 function setDay(d){activeDay=d;renderTrain();}
@@ -1268,8 +1292,9 @@ function workLoad(name,pct,start){
   // charge de travail: si on a un e1RM pour CETTE variante, applique le %; sinon la valeur start
   if(S.workLoads[name]!=null) return S.workLoads[name];
   if(S.e1rm[name]&&pct&&pct.indexOf("%")>=0){
-    const p=parseFloat(pct.replace(/[^0-9]/g,''))/100;
-    return Math.round((S.e1rm[name]*p)/2.5)*2.5;
+    const pm=(""+pct).match(/(\d+(?:\.\d+)?)\s*%/);
+    const p=pm?+pm[1]/100:0;
+    if(p)return Math.round((S.e1rm[name]*p)/2.5)*2.5;
   }
   return start;
 }
@@ -1294,7 +1319,8 @@ function computeReco(name,exo){
 
   // ===== Exercices avec %1RM défini : charge = 1RM estimé × % cible =====
   if(pctMatch){
-    const pct=parseFloat(exo.pct.replace(/[^0-9.]/g,''))/100;
+    const pm=(""+exo.pct).match(/(\d+(?:\.\d+)?)\s*%/);
+    const pct=pm?+pm[1]/100:0;
     // 1RM estimé : priorité à la dernière séance (RIR-ajusté), sinon stocké
     let e1=ws.length?bestE1RM(ws):0;
     if(!e1)e1=S.e1rm[name]||0;
@@ -1361,7 +1387,7 @@ function resetVariant(day,ei){delete S.exoChoice[day+"-"+ei];save();renderExos()
 function renderExos(){
   const dk=PROGRAM[activeDay];
   const cs=S.curSets[activeDay]||{};
-  document.getElementById("exoList").innerHTML=dk.exos.map((exo,ei)=>{
+  document.getElementById("exoList").innerHTML=timeAdjust(dk.exos).map((exo,ei)=>{
     const av=activeVariant(activeDay,ei,exo);
     const vs=variantsOf(exo);
     const swapped=av.n!==vs[0].n;
@@ -1421,7 +1447,7 @@ function finishSession(){
   if(activeDay==='P')return finishCustom();
   const d=activeDay,dk=PROGRAM[d],cs=S.curSets[d]||{};
   let logged=0;const sessLog={date:new Date(sessDate+"T12:00:00").toISOString(),day:d,week:curWeek(),exos:[]};
-  dk.exos.forEach((exo,ei)=>{
+  timeAdjust(dk.exos).forEach((exo,ei)=>{
     const rows=cs[ei]?Object.values(cs[ei]).filter(x=>x.w&&x.r):[];
     if(!rows.length)return;
     logged++;
