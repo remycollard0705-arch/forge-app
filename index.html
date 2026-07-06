@@ -339,6 +339,26 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
     </div>
 
     <div class="card">
+      <div class="row between"><h2 style="margin:0">Mensurations</h2><span class="tag" id="giCount"></span></div>
+      <p class="note" style="margin:8px 0 10px">Mètre ruban, <b>toutes les 2-3 semaines</b>, le matin à jeun, muscle contracté pour le bras. Feedback direct sur l'objectif upper-body — plus sensible que l'InBody sur 3-6 semaines.</p>
+      <div id="giCharts"></div>
+      <div class="hr"></div>
+      <div class="grid2">
+        <div><label>Date</label><input id="giDate" type="date"></div>
+        <div><label>Bras contracté (cm)</label><input id="giArm" type="number" step="0.5" inputmode="decimal"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Poitrine (cm)</label><input id="giChest" type="number" step="0.5" inputmode="decimal"></div>
+        <div><label>Épaules (cm)</label><input id="giShoulder" type="number" step="0.5" inputmode="decimal"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Taille (cm, option.)</label><input id="giWaist" type="number" step="0.5" inputmode="decimal"></div>
+        <div></div>
+      </div>
+      <button class="btn btn-prim btn-block" style="margin-top:12px" onclick="addGirth()">Enregistrer les mensurations</button>
+    </div>
+
+    <div class="card">
       <div class="row between"><h2 style="margin:0">Prise de sang</h2><span class="tag" id="bloodDate"></span></div>
       <div class="callout warn" style="margin-top:10px">⚕️ Analyse informative — je ne suis pas médecin. Les valeurs hors norme ci-dessous, surtout les cellules sanguines, doivent être discutées avec ton médecin (Dr Dubois).</div>
       <div id="bloodAnalysis"></div>
@@ -492,6 +512,12 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
 
   <!-- SÉANCES -->
   <div id="histTabSess">
+    <div class="card">
+      <div class="row between"><h2 style="margin:0">Progression 1RM estimé</h2><span class="tag" id="e1Trend"></span></div>
+      <select id="e1Sel" style="margin-top:10px" onchange="e1Exo=this.value;renderE1Chart()"></select>
+      <div id="e1Chart" style="margin-top:10px"></div>
+      <p class="note" style="margin-top:8px">1RM Epley (RIR inclus) du meilleur set de chaque séance. C'est <b>la</b> métrique qui dit si le programme marche : vise +2,5 kg toutes les 2-4 semaines sur les gros mouvements. Plate sur 4+ séances = surplus calorique insuffisant ou récupération à revoir.</p>
+    </div>
     <div class="card">
       <h2>Historique des séances</h2>
       <p class="note" style="margin-bottom:10px">De la plus récente à la plus ancienne. Appuie pour voir le détail et modifier.</p>
@@ -732,6 +758,7 @@ function blank(){
       {date:"2026-06-06",vals:{wbc:3.11,neutro:1.64,lympho:0.82,platelets:155,hct:49.6,crp:8.5,transfsat:21,ferritin:124,vitd:36.8,b12:358,tsh:2.42,glucose:85,creat:1.11,hdl:40.8,ldl:96,tg:109,chol:159}}
     ],
     weights:[],             // [{d, kg}]
+    girths:[],              // mensurations [{date, arm, chest, shoulder, waist}]
     activities:{},          // {date:[{type,min,kcal}]}
     curSets:{}              // saisie en cours
   };
@@ -782,6 +809,7 @@ function go(v){
 }
 const DAY_LABEL={A:"Séance A · Haut poussée",B:"Séance B · Jambes",C:"Séance C · Haut tirage",H:"Maison · Poids du corps",P:"Séance Perso"};
 let histTab='sess';
+let e1Exo=null;
 let nutHistWeek=todayKey();
 function setHistTab(t){
   histTab=t;
@@ -842,6 +870,15 @@ function renderNutHist(){
         </div>`).join("")}
     </div>
     <p class="note" style="margin-top:8px">Jours renseignés : <b>${logged} / 7</b>.</p>`;
+  const dLog=days.filter(d=>d.e.kcal>0);
+  const pOk=dLog.filter(d=>d.e.p>=m.p*0.95).length;
+  const kOk=dLog.filter(d=>d.e.kcal>=m.kcal*0.9&&d.e.kcal<=m.kcal*1.05).length;
+  document.getElementById("nutWeekStats").innerHTML+=`
+    <div class="grid2" style="margin-top:10px">
+      <div class="stat"><div class="k">Protéines atteintes</div><div class="v" style="color:${pOk===dLog.length&&dLog.length?'var(--lime)':pOk>=dLog.length*0.7?'var(--carb)':'var(--fat)'}">${pOk}<small> / ${dLog.length} j</small></div></div>
+      <div class="stat"><div class="k">Kcal dans la cible</div><div class="v" style="color:${kOk>=dLog.length*0.7&&dLog.length?'var(--lime)':'var(--fat)'}">${kOk}<small> / ${dLog.length} j</small></div></div>
+    </div>
+    <p class="note" style="margin-top:6px">Seuils : protéines ≥ 95 % de la cible · kcal entre 90 et 105 %. Sur les jours renseignés uniquement — un jour non loggé n'est ni bon ni mauvais, il est invisible.</p>`;
   const daysWithFood=[...days].reverse().filter(d=>d.e.kcal>0);
   document.getElementById("nutDayList").innerHTML=daysWithFood.length
     ?daysWithFood.map(d=>nutDayCard(d.k)).join("")
@@ -900,7 +937,39 @@ function delHistFood(k,i){
   if(!S.foods[k].length)delete S.foods[k];
   save();renderNutDayBody(k);renderNutHist();toast("Supprimé ✓");
 }
+function e1rmSeries(){
+  const map={};
+  S.logs.forEach(lg=>{
+    (lg.exos||[]).forEach(ex=>{
+      const v=ex.e1rm||Math.round(bestE1RM(ex.sets||[]));
+      if(!v)return;
+      if(!map[ex.n])map[ex.n]=[];
+      map[ex.n].push({d:lg.date,y:v});
+    });
+  });
+  Object.keys(map).forEach(n=>map[n].sort((a,b)=>new Date(a.d)-new Date(b.d)));
+  return map;
+}
+function renderE1Chart(){
+  const sel=document.getElementById("e1Sel"),ch=document.getElementById("e1Chart"),tr=document.getElementById("e1Trend");
+  const map=e1rmSeries();
+  const names=Object.keys(map).sort((a,b)=>map[b].length-map[a].length);
+  if(!names.length){sel.style.display="none";ch.innerHTML='<p class="note">Termine des séances pour voir ta progression.</p>';tr.textContent="";return;}
+  sel.style.display="block";
+  if(!e1Exo||!map[e1Exo])e1Exo=names[0];
+  sel.innerHTML=names.map(n=>`<option value="${n}" ${n===e1Exo?"selected":""}>${n} (${map[n].length})</option>`).join("");
+  const pts=map[e1Exo].slice(-12);
+  const step=Math.max(1,Math.ceil(pts.length/5));
+  ch.innerHTML=lineChart(pts.map((p,i)=>({y:p.y,lab:(i%step===0||i===pts.length-1)?shortDate(p.d):""})),"var(--lime)");
+  if(pts.length>=2){
+    const dy=pts[pts.length-1].y-pts[0].y;
+    const wk=Math.max(1,(new Date(pts[pts.length-1].d)-new Date(pts[0].d))/6048e5);
+    tr.textContent=(dy>=0?"+":"")+dy+" kg ("+(dy/wk>=0?"+":"")+(dy/wk).toFixed(1)+"/sem)";
+    tr.style.color=dy>0?"var(--lime)":dy<0?"var(--fat)":"var(--faint)";
+  }else tr.textContent=pts.length+" point";
+}
 function renderHist(){
+  renderE1Chart();
   const el=document.getElementById("histList");
   const logs=[...S.logs].reverse();
   if(!logs.length){el.innerHTML='<p class="note">Aucune séance enregistrée pour l\'instant.</p>';return;}
@@ -1949,9 +2018,36 @@ function renderBody(){
   document.getElementById("adaptBody").innerHTML=html;
   renderWeightChart();
   renderInbody();
+  renderGirths();
   renderBlood();
   const idt=document.getElementById("ibDate");if(idt&&!idt.value)idt.value=todayKey();
+  const gdt=document.getElementById("giDate");if(gdt&&!gdt.value)gdt.value=todayKey();
   const bld=document.getElementById("blDate");if(bld&&!bld.value)bld.value=todayKey();
+}
+function addGirth(){
+  const d=document.getElementById("giDate").value||todayKey();
+  const g={date:d,arm:+document.getElementById("giArm").value||null,chest:+document.getElementById("giChest").value||null,
+    shoulder:+document.getElementById("giShoulder").value||null,waist:+document.getElementById("giWaist").value||null};
+  if(!g.arm&&!g.chest&&!g.shoulder&&!g.waist){toast("Renseigne au moins une mesure.");return;}
+  S.girths=S.girths.filter(x=>x.date!==d);
+  S.girths.push(g);S.girths.sort((a,b)=>a.date<b.date?-1:1);
+  save();renderGirths();toast("Mensurations enregistrées ✓");
+  ["giArm","giChest","giShoulder","giWaist"].forEach(id=>document.getElementById(id).value="");
+}
+function renderGirths(){
+  const a=S.girths||[],ch=document.getElementById("giCharts");
+  document.getElementById("giCount").textContent=a.length+" relevé"+(a.length>1?"s":"");
+  if(!a.length){ch.innerHTML='<p class="note">Aucun relevé. Premier passage de ruban = ta baseline.</p>';return;}
+  const defs=[["arm","Bras contracté","var(--lime)"],["chest","Poitrine","var(--blue)"],["shoulder","Épaules","var(--prot)"],["waist","Taille","var(--fat)"]];
+  let html="";
+  defs.forEach(([k,lab,col])=>{
+    const pts=a.filter(x=>x[k]).map(x=>({y:x[k],lab:shortDate(x.date)}));
+    if(!pts.length)return;
+    const delta=pts.length>1?(pts[pts.length-1].y-pts[0].y).toFixed(1):null;
+    html+=`<div class="note" style="margin-top:6px">${lab} (cm)${delta!==null?` · <b style="color:${+delta>0?'var(--lime)':+delta<0?'var(--fat)':'var(--faint)'}">${+delta>=0?'+':''}${delta} cm</b> depuis le début`:''}</div>`
+      +(pts.length>1?lineChart(pts.slice(-8),col):`<p class="note">Dernier : <b>${pts[0].y} cm</b> — ajoute un 2ᵉ relevé pour la courbe.</p>`);
+  });
+  ch.innerHTML=html;
 }
 function renderWeightChart(){
   const el=document.getElementById("wChart");
