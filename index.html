@@ -179,7 +179,8 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
         <input id="nutDate" type="date" style="flex:1;text-align:center" onchange="setViewDate(this.value)">
         <button class="btn btn-sm" onclick="shiftDate(1)">▶</button>
       </div>
-      <button class="btn btn-block btn-sm" onclick="setViewDate(todayKey())" style="margin-bottom:12px">Revenir à aujourd'hui</button>
+      <button class="btn btn-block btn-sm" onclick="setViewDate(todayKey())" style="margin-bottom:8px">Revenir à aujourd'hui</button>
+      <div id="nutBackfillNote"></div>
       <div class="eyebrow" style="margin-bottom:6px">Repas en cours de saisie</div>
       <div class="seg" id="mealSeg" style="flex-wrap:wrap;gap:4px"></div>
     </div>
@@ -189,6 +190,18 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
       <div id="nutGoalBanner"></div>
       <div class="macro-ring" id="nutMacros" style="margin-top:12px"></div>
     </div>
+
+    <div class="card" id="planCard">
+      <div class="row between"><h2 style="margin:0">Plan repas auto</h2><span class="tag lime" id="planTag"></span></div>
+      <p class="note" style="margin-top:6px">Idées calculées sur ce qu'il te <b>reste</b> à manger ce jour (28 recettes + tes plats ★). Recalcul auto à chaque ajout. ↻ autre idée · ✎ modifier · ✓ ajouter tel quel. Grammages en <b>cuit</b> sauf mention "(cru)" ; l'équivalent cru s'affiche entre parenthèses pour féculents/viandes.</p>
+      <div id="planBody" style="margin-top:10px"></div>
+    </div>
+
+    <details class="card">
+      <summary class="row between"><h2 style="margin:0">🍽 Mes plats</h2><span class="tag lime" id="savedTag"></span></summary>
+      <p class="note" style="margin-top:6px">Plats déjà mangés (enregistrés via le composeur). 🎯 adapte les quantités à ce qu'il te reste aujourd'hui · ✎ modifier · ✓ ajouter tel quel. Ils entrent aussi dans la rotation du plan (★).</p>
+      <div id="savedBody" style="margin-top:10px"></div>
+    </details>
 
     <details class="card">
       <summary><h2>Activité / Sport du jour</h2><span class="hint">🏀 sport hors muscu</span><span class="chev">▼</span></summary>
@@ -240,6 +253,7 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
         </div>
         <div class="macro-ring" id="bcPreview" style="margin:10px 0 12px"></div>
         <button class="btn btn-prim btn-block" onclick="addFromBarcode()">Ajouter au journal</button>
+        <button class="btn btn-block btn-sm" style="margin-top:8px" onclick="addBcToMeal()">➕ Ajouter comme ingrédient au composeur</button>
       </div>
     </div></details>
 
@@ -251,12 +265,30 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
       <button class="btn btn-block btn-sm" id="offBtn" style="margin-top:8px;display:none" onclick="offTextSearch()">🔎 Chercher aussi en ligne (produits de marque)</button>
     </div></details>
 
-    <details class="card">
+    <details class="card" id="composerCard">
       <summary><h2>Composer un repas (ex : sandwich)</h2><span class="hint">🥪 multi-ingrédients</span><span class="chev">▼</span></summary>
       <div class="acc-body">
       <p class="note" style="margin-bottom:10px">Empile tes ingrédients avec une quantité estimée en grammes, l'app additionne. Estimation à ±20-30 % selon la précision de tes grammages.</p>
-      <input id="mealSearch" placeholder="Ajouter un ingrédient…" oninput="renderMealSearch()">
+      <input id="mealSearch" placeholder="Ajouter un ingrédient (base + mes aliments)…" oninput="renderMealSearch()">
       <div id="mealSearchRes" style="margin-top:8px"></div>
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button class="btn btn-sm" style="flex:1" onclick="mealScanShortcut()">📷 Code-barres</button>
+        <button class="btn btn-sm" style="flex:1" onclick="toggleMealManual()">✍️ Saisie manuelle</button>
+      </div>
+      <div id="mealManual" style="display:none;margin-top:10px;border:1px solid var(--surface2);border-radius:11px;padding:10px">
+        <input id="mmName" placeholder="Nom de l'aliment">
+        <label style="margin-top:8px">Quantité (g) — macros ci-dessous pour cette quantité</label>
+        <input id="mmG" type="number" inputmode="numeric" value="100">
+        <div class="grid2" style="margin-top:8px">
+          <div><label>Calories</label><input id="mmKcal" type="number" inputmode="numeric"></div>
+          <div><label>Protéines (g)</label><input id="mmP" type="number" inputmode="numeric"></div>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <div><label>Glucides (g)</label><input id="mmC" type="number" inputmode="numeric"></div>
+          <div><label>Lipides (g)</label><input id="mmF" type="number" inputmode="numeric"></div>
+        </div>
+        <button class="btn btn-prim btn-block btn-sm" style="margin-top:10px" onclick="mealAddManual()">➕ Ajouter au repas</button>
+      </div>
       <div id="mealList" style="margin-top:10px"></div>
       <div id="mealTotal"></div>
       <input id="mealName" placeholder="Nom du repas (ex : Sandwich poulet)" style="margin-top:10px">
@@ -583,9 +615,19 @@ const PROGRAM = {
         {n:"Tirage horizontal à la machine",start:50,cue:"Buste calé, tire vers le bas-ventre, serre les omoplates.",vid:"rowing machine assise technique"}
       ]},
     {n:"Élévations latérales haltères",sets:3,reps:"15",pct:"~65%",rest:75,rir:"1-2",start:8,
-      cue:"Coudes légèrement fléchis, monte à l'horizontale, pas d'élan. Léger > lourd ici.",vid:"élévations latérales technique"},
+      cue:"Coudes légèrement fléchis, monte à l'horizontale, pas d'élan. Léger > lourd ici.",vid:"élévations latérales technique",
+      variants:[
+        {n:"Élévations latérales haltères",start:8,cue:"Coudes légèrement fléchis, monte à l'horizontale, pas d'élan. Léger > lourd ici.",vid:"élévations latérales technique"},
+        {n:"Élévations latérales poulie basse (unilatéral)",start:5,cue:"Poulie au plus bas, câble derrière le corps. Tension constante = variante la plus efficace pour le deltoïde moyen.",vid:"élévations latérales poulie technique"},
+        {n:"Élévations latérales à la machine",start:20,cue:"Machine dédiée Basic-Fit : trajectoire guidée, parfait pour aller proche de l'échec sans tricher.",vid:"lateral raise machine technique"}
+      ]},
     {n:"Extensions triceps poulie corde",sets:3,reps:"12",pct:"—",rest:75,rir:"1",start:25,
-      cue:"Coudes collés au corps, écarte la corde en bas, étire en haut.",vid:"extension triceps corde poulie"}
+      cue:"Coudes collés au corps, écarte la corde en bas, étire en haut.",vid:"extension triceps corde poulie",
+      variants:[
+        {n:"Extensions triceps poulie corde",start:25,cue:"Coudes collés au corps, écarte la corde en bas, étire en haut.",vid:"extension triceps corde poulie"},
+        {n:"Extensions triceps poulie barre V",start:30,cue:"Si les cordes sont prises. Même consigne : coudes fixes.",vid:"extension triceps barre poulie technique"},
+        {n:"Extensions nuque poulie (overhead)",start:20,cue:"Dos à la poulie, coudes au ciel : étire la longue portion, très rentable en hypertrophie.",vid:"extension triceps overhead poulie technique"}
+      ]}
   ]},
   B:{name:"Séance B",sub:"Bas + gainage",exos:[
     {n:"Squat barre libre",sets:4,reps:"6",pct:"~82%",rest:180,rir:"1-2",start:50,
@@ -604,19 +646,43 @@ const PROGRAM = {
         {n:"Leg curl assis ou allongé",start:32,cue:"Repli machine pour isoler les ischios sans charge sur la colonne.",vid:"leg curl machine technique"}
       ]},
     {n:"Presse à cuisses",sets:3,reps:"12",pct:"—",rest:120,rir:"1-2",start:120,
-      cue:"Amplitude complète sans décoller le bas du dos, pieds largeur épaules.",vid:"presse à cuisses technique"},
+      cue:"Amplitude complète sans décoller le bas du dos, pieds largeur épaules.",vid:"presse à cuisses technique",
+      variants:[
+        {n:"Presse à cuisses",start:120,cue:"Amplitude complète sans décoller le bas du dos, pieds largeur épaules.",vid:"presse à cuisses technique"},
+        {n:"Leg extension",start:45,cue:"Si la presse est prise : isole les quadris, 1s de pause en haut, négative 2s.",vid:"leg extension technique"},
+        {n:"Fentes marchées haltères",start:16,cue:"2 haltères, grands pas, genou arrière frôle le sol. Excellent transfert basket.",vid:"fentes marchées haltères technique"}
+      ]},
     {n:"Leg curl allongé",sets:3,reps:"12",pct:"—",rest:90,rir:"1",start:35,
-      cue:"Contrôle la phase négative 2-3s, pas de à-coups de bassin.",vid:"leg curl technique"},
+      cue:"Contrôle la phase négative 2-3s, pas de à-coups de bassin.",vid:"leg curl technique",
+      variants:[
+        {n:"Leg curl allongé",start:35,cue:"Contrôle la phase négative 2-3s, pas de à-coups de bassin.",vid:"leg curl technique"},
+        {n:"Leg curl assis",start:40,cue:"Version assise Basic-Fit : hanche fléchie = ischios plus étirés, légèrement supérieur pour l'hypertrophie.",vid:"leg curl assis technique"}
+      ]},
     {n:"Mollets debout",sets:4,reps:"15",pct:"—",rest:60,rir:"0-1",start:60,
-      cue:"Amplitude max, 1s de pause en haut, étirement complet en bas.",vid:"mollets debout technique"},
+      cue:"Amplitude max, 1s de pause en haut, étirement complet en bas.",vid:"mollets debout technique",
+      variants:[
+        {n:"Mollets debout",start:60,cue:"Amplitude max, 1s de pause en haut, étirement complet en bas.",vid:"mollets debout technique"},
+        {n:"Mollets à la presse",start:80,cue:"Pas de machine mollets debout dans ton club ? Pointes de pieds en bas de la presse, mêmes consignes.",vid:"mollets presse à cuisses technique"},
+        {n:"Mollets au Smith",start:40,cue:"Barre du Smith sur les trapèzes, cale/step sous l'avant des pieds pour l'étirement.",vid:"mollets smith machine technique"}
+      ]},
     {n:"Relevés de jambes + gainage",sets:3,reps:"max",pct:"—",rest:60,rir:"0",start:0,
       cue:"Bas du dos plaqué, mouvement contrôlé, pas d'élan.",vid:"relevé de jambes suspendu"}
   ]},
   C:{name:"Séance C",sub:"Haut · tirage + delts/bras",exos:[
     {n:"Développé incliné haltères",sets:4,reps:"8",pct:"~78%",rest:150,rir:"1-2",start:24,
-      cue:"Banc 30°, haltères descendent au niveau des pectoraux, ne verrouille pas les coudes en haut.",vid:"développé incliné haltères technique"},
+      cue:"Banc 30°, haltères descendent au niveau des pectoraux, ne verrouille pas les coudes en haut.",vid:"développé incliné haltères technique",
+      variants:[
+        {n:"Développé incliné haltères",start:24,cue:"Banc 30°, haltères descendent au niveau des pectoraux, ne verrouille pas les coudes en haut.",vid:"développé incliné haltères technique"},
+        {n:"Développé incliné au Smith",start:40,cue:"Banc 30° sous le Smith : charge lourde en sécurité sans pareur.",vid:"développé incliné smith technique"},
+        {n:"Chest press incliné machine",start:50,cue:"Machine convergente Basic-Fit : trajectoire guidée, idéal pour pousser proche de l'échec.",vid:"incline chest press machine technique"}
+      ]},
     {n:"Tirage horizontal poulie",sets:4,reps:"10",pct:"~73%",rest:120,rir:"1-2",start:55,
-      cue:"Buste droit, tire vers le nombril, serre les omoplates, contrôle le retour.",vid:"tirage horizontal poulie technique"},
+      cue:"Buste droit, tire vers le nombril, serre les omoplates, contrôle le retour.",vid:"tirage horizontal poulie technique",
+      variants:[
+        {n:"Tirage horizontal poulie",start:55,cue:"Buste droit, tire vers le nombril, serre les omoplates, contrôle le retour.",vid:"tirage horizontal poulie technique"},
+        {n:"Rowing machine assis (plaques)",start:50,cue:"Buste calé contre le pad : isole le dos, zéro triche du bas du dos.",vid:"seated row machine technique"},
+        {n:"Rowing haltère un bras",start:24,cue:"Si les poulies sont prises. Genou et main sur le banc, tire vers la hanche.",vid:"rowing haltère un bras technique"}
+      ]},
     {n:"Dips assistés (vers le poids du corps)",sets:3,reps:"8",pct:"—",rest:120,rir:"1-2",start:14,
       cue:"Tu es à 14 kg d'assistance machine (log du 10/06). Objectif : baisser l'assistance séance après séance jusqu'à 0, PUIS lester.",vid:"dips assistés machine technique",
       variants:[
@@ -630,9 +696,18 @@ const PROGRAM = {
     {n:"Élévations latérales haltères",sets:3,reps:"15",pct:"~65%",rest:75,rir:"1",start:8,
       cue:"2e dose delts de la semaine. Tempo lent, pas d'élan.",vid:"élévations latérales technique"},
     {n:"Curl barre EZ",sets:3,reps:"10",pct:"~73%",rest:90,rir:"1",start:25,
-      cue:"Coudes fixes le long du corps, pas de balancier, négative 2s.",vid:"curl barre ez technique"},
+      cue:"Coudes fixes le long du corps, pas de balancier, négative 2s.",vid:"curl barre ez technique",
+      variants:[
+        {n:"Curl barre EZ",start:25,cue:"Coudes fixes le long du corps, pas de balancier, négative 2s.",vid:"curl barre ez technique"},
+        {n:"Curl poulie basse barre droite",start:20,cue:"Tension constante sur tout le mouvement, coudes fixes.",vid:"curl poulie basse technique"},
+        {n:"Curl pupitre machine (preacher)",start:25,cue:"Machine biceps Basic-Fit : bras calés, impossible de tricher.",vid:"preacher curl machine technique"}
+      ]},
     {n:"Curl incliné haltères",sets:2,reps:"12",pct:"—",rest:75,rir:"0-1",start:12,
-      cue:"Banc incliné, bras en arrière du corps pour étirer le biceps, finition.",vid:"curl incliné haltères technique"}
+      cue:"Banc incliné, bras en arrière du corps pour étirer le biceps, finition.",vid:"curl incliné haltères technique",
+      variants:[
+        {n:"Curl incliné haltères",start:12,cue:"Banc incliné, bras en arrière du corps pour étirer le biceps, finition.",vid:"curl incliné haltères technique"},
+        {n:"Curl marteau haltères",start:12,cue:"Prise neutre : brachial + avant-bras, utile pour la poigne (rebonds, ballon).",vid:"curl marteau technique"}
+      ]}
   ]}
 };
 const HOME={
@@ -762,7 +837,9 @@ function blank(){
     weights:[],             // [{d, kg}]
     girths:[],              // mensurations [{date, arm, chest, shoulder, waist}]
     activities:{},          // {date:[{type,min,kcal}]}
-    curSets:{}              // saisie en cours
+    curSets:{},             // saisie en cours
+    planVar:{},             // variantes du plan repas {date:{slot:idx}}
+    savedMeals:[]           // plats enregistrés [{n, items:[{n,per100,g}]}]
   };
 }
 function load(){try{const r=localStorage.getItem("forge_v1");if(r){const s=JSON.parse(r);return Object.assign(blank(),s);}}catch(e){}const b=blank();b.macros=calcMacros(b.profile);return b;}
@@ -1484,6 +1561,10 @@ function dayGoal(k){const m=S.macros,ak=activityKcalOn(k);return {kcal:m.kcal+ak
 function renderNut(){
   const e=eatenOn(viewDate),g=dayGoal(viewDate);
   document.getElementById("nutDate").value=viewDate;
+  const bn=document.getElementById("nutBackfillNote");
+  bn.innerHTML=viewDate!==todayKey()
+    ?`<div class="callout" style="border-color:var(--carb);margin-bottom:10px">⏪ <b>Saisie pour ${dateLabel(viewDate)}</b> — pas aujourd'hui. Tout ce que tu ajoutes ira sur ce jour-là et ne touchera pas l'accueil.</div>`
+    :"";
   document.getElementById("mealSeg").innerHTML=MEALS.map(s=>`<button class="${s.id===activeMeal?'on':''}" style="flex:1 1 30%;min-width:0;padding:9px 4px;font-size:12px" onclick="setMeal('${s.id}')">${s.label}</button>`).join("");
   document.getElementById("nutDateLbl").textContent="Bilan · "+dateLabel(viewDate);
   document.getElementById("nutKcalLeft").textContent=Math.max(0,Math.round(g.kcal-e.kcal))+" kcal restantes";
@@ -1499,7 +1580,7 @@ function renderNut(){
   renderActivities();
   renderJournal();
   renderWeek();
-  renderLib();renderDbResults();renderMeal();
+  renderLib();renderDbResults();renderMeal();renderPlan();renderSavedMeals();
   checkProteinGoal(e,g);
 }
 /* ===== Fun : célébration cible protéines + streak ===== */
@@ -1569,9 +1650,17 @@ function renderJournal(){
     if(!idxs.length)return;
     const tot=idxs.reduce((a,o)=>({kcal:a.kcal+o.f.kcal,p:a.p+o.f.p}),{kcal:0,p:0});
     html+=`<div class="eyebrow" style="margin:12px 0 4px">${s.label} · ${Math.round(tot.kcal)} kcal · P${Math.round(tot.p)}</div>`;
-    html+=idxs.map(o=>`<div class="food"><div><div>${o.f.n}</div><div class="fk">${o.f.kcal} kcal · P${o.f.p} G${o.f.c} L${o.f.f}</div></div><button class="del" onclick="delFood(${o.i})">×</button></div>`).join("");
+    html+=idxs.map(o=>`<div class="food"><div style="flex:1"><div>${o.f.n}</div><div class="fk">${o.f.kcal} kcal · P${o.f.p} G${o.f.c} L${o.f.f}</div></div><button class="del" style="color:var(--faint);font-size:11px" title="Déplacer à la veille" onclick="moveFood(${o.i},-1)">⏪ J-1</button><button class="del" onclick="delFood(${o.i})">×</button></div>`).join("");
   });
   document.getElementById("foodList").innerHTML=html;
+}
+function moveFood(i,n){
+  const arr=S.foods[viewDate];if(!arr||!arr[i])return;
+  const d=new Date(viewDate+"T12:00:00");d.setDate(d.getDate()+n);const k=dkey(d);
+  const f=arr.splice(i,1)[0];
+  if(!arr.length)delete S.foods[viewDate];
+  if(!S.foods[k])S.foods[k]=[];S.foods[k].push(f);
+  save();renderNut();toast("Déplacé au "+dateLabel(k)+" ✓");
 }
 function renderWeek(){
   const keys=weekKeys(viewDate),m=S.macros;
@@ -1739,6 +1828,8 @@ function addFromBarcode(){
 /* ===== Recherche base d'aliments (locale + OpenFoodFacts) ===== */
 function loadToQty(name,unit,kcal,p,c,f){
   bcPer100={n:name,unit:unit||"g",kcal:+kcal||0,p:+p||0,c:+c||0,f:+f||0};
+  const det=document.getElementById("bcProduct").closest("details");
+  if(det)det.open=true; // le panneau quantité vit dans l'accordéon code-barres : on l'ouvre sinon rien n'est visible
   document.getElementById("bcQty").value=100;
   document.getElementById("bcSlider").value=100;
   document.getElementById("bcProductName").innerHTML=`<b>${name}</b><br><span style="font-size:11px;opacity:.7">Valeurs pour 100 ${unit||"g"} — ajuste la quantité réellement mangée</span>`;
@@ -1779,14 +1870,408 @@ async function offTextSearch(){
 }
 /* ===== Composeur de repas ===== */
 let meal=[];
+/* ===== PLAN REPAS AUTO : répartit le restant sur les créneaux vides ===== */
+const PLAN_W={dej:.22,c10:.09,diner:.27,c16:.11,souper:.26,soiree:.05};
+const PLAN_CAT={dej:"bf",c10:"snack",c16:"snack",soiree:"snack",diner:"main",souper:"main"};
+const PLAN_RECIPES={
+bf:[
+ {n:"Avoine banane + whey",items:[
+  {n:"Flocons d'avoine",per100:{kcal:370,p:13,c:60,f:7},g:80,lev:"c",min:40,max:150},
+  {n:"Lait demi-écrémé",per100:{kcal:47,p:3.3,c:4.8,f:1.5},g:300},
+  {n:"Banane",per100:{kcal:89,p:1.1,c:23,f:0.3},g:120},
+  {n:"Beurre de cacahuète",per100:{kcal:590,p:25,c:20,f:50},g:20},
+  {n:"Whey",per100:{kcal:390,p:78,c:6,f:6},g:30,lev:"p",min:0,max:60}]},
+ {n:"Pain complet, œufs, fromage",items:[
+  {n:"Pain complet",per100:{kcal:250,p:9,c:45,f:3},g:100,lev:"c",min:60,max:180},
+  {n:"Œufs entiers",per100:{kcal:143,p:12.5,c:1,f:10},g:110,lev:"p",min:55,max:220},
+  {n:"Gouda",per100:{kcal:356,p:25,c:2,f:27},g:30},
+  {n:"Jus d'orange",per100:{kcal:45,p:0.7,c:10,f:0.1},g:250}]},
+ {n:"Skyr granola miel",items:[
+  {n:"Skyr nature",per100:{kcal:63,p:11,c:4,f:0.2},g:250,lev:"p",min:150,max:500},
+  {n:"Granola",per100:{kcal:470,p:10,c:60,f:20},g:60,lev:"c",min:30,max:130},
+  {n:"Miel",per100:{kcal:304,p:0.3,c:82,f:0},g:20},
+  {n:"Amandes",per100:{kcal:600,p:21,c:9,f:52},g:15}]},
+ {n:"Pancakes avoine-banane",items:[
+  {n:"Flocons d'avoine (cru)",per100:{kcal:370,p:13,c:60,f:7},g:80,lev:"c",min:40,max:150},
+  {n:"Œufs entiers",per100:{kcal:143,p:12.5,c:1,f:10},g:110,lev:"p",min:55,max:220},
+  {n:"Banane",per100:{kcal:89,p:1.1,c:23,f:0.3},g:120},
+  {n:"Sirop d'érable",per100:{kcal:260,p:0,c:67,f:0},g:20}]},
+ {n:"Toast avocat + œufs",items:[
+  {n:"Pain complet",per100:{kcal:250,p:9,c:45,f:3},g:90,lev:"c",min:60,max:180},
+  {n:"Œufs entiers",per100:{kcal:143,p:12.5,c:1,f:10},g:110,lev:"p",min:55,max:220},
+  {n:"Avocat",per100:{kcal:160,p:2,c:9,f:15},g:70},
+  {n:"Jus d'orange",per100:{kcal:45,p:0.7,c:10,f:0.1},g:200}]},
+ {n:"Bowl cottage cheese fruits rouges",items:[
+  {n:"Cottage cheese",per100:{kcal:98,p:11,c:3.4,f:4.3},g:250,lev:"p",min:150,max:450},
+  {n:"Muesli",per100:{kcal:380,p:10,c:62,f:8},g:60,lev:"c",min:30,max:130},
+  {n:"Fruits rouges",per100:{kcal:45,p:1,c:9,f:0.4},g:120},
+  {n:"Miel",per100:{kcal:304,p:0.3,c:82,f:0},g:15}]},
+ {n:"Porridge chocolat-whey",items:[
+  {n:"Flocons d'avoine (cru)",per100:{kcal:370,p:13,c:60,f:7},g:80,lev:"c",min:40,max:150},
+  {n:"Lait demi-écrémé",per100:{kcal:47,p:3.3,c:4.8,f:1.5},g:300},
+  {n:"Whey",per100:{kcal:390,p:78,c:6,f:6},g:30,lev:"p",min:0,max:60},
+  {n:"Chocolat noir 70%",per100:{kcal:570,p:8,c:34,f:42},g:15}]},
+ {n:"Wrap œufs brouillés jambon",items:[
+  {n:"Tortilla blé",per100:{kcal:300,p:8,c:50,f:7},g:120,lev:"c",min:60,max:190},
+  {n:"Œufs entiers",per100:{kcal:143,p:12.5,c:1,f:10},g:110,lev:"p",min:55,max:220},
+  {n:"Jambon blanc",per100:{kcal:110,p:20,c:1,f:3},g:60},
+  {n:"Emmental râpé",per100:{kcal:380,p:28,c:0.5,f:29},g:20}]}],
+snack:[
+ {n:"Shake avoine-banane",items:[
+  {n:"Whey",per100:{kcal:390,p:78,c:6,f:6},g:30,lev:"p",min:15,max:60},
+  {n:"Lait demi-écrémé",per100:{kcal:47,p:3.3,c:4.8,f:1.5},g:300},
+  {n:"Flocons d'avoine",per100:{kcal:370,p:13,c:60,f:7},g:40,lev:"c",min:20,max:100},
+  {n:"Banane",per100:{kcal:89,p:1.1,c:23,f:0.3},g:100}]},
+ {n:"Sandwich poulet",items:[
+  {n:"Pain complet",per100:{kcal:250,p:9,c:45,f:3},g:90,lev:"c",min:60,max:160},
+  {n:"Blanc de poulet cuit",per100:{kcal:165,p:31,c:0,f:3.6},g:80,lev:"p",min:50,max:150},
+  {n:"Fromage frais",per100:{kcal:250,p:7,c:3,f:22},g:20},
+  {n:"Crudités",per100:{kcal:25,p:1.5,c:4,f:0.2},g:50}]},
+ {n:"Fromage blanc, fruits, noix",items:[
+  {n:"Fromage blanc 3%",per100:{kcal:80,p:8,c:4,f:3},g:200,lev:"p",min:150,max:400},
+  {n:"Banane",per100:{kcal:89,p:1.1,c:23,f:0.3},g:100,lev:"c",min:50,max:200},
+  {n:"Noix",per100:{kcal:654,p:15,c:14,f:65},g:20},
+  {n:"Miel",per100:{kcal:304,p:0.3,c:82,f:0},g:15}]},
+ {n:"Tartines fromage frais + thon",items:[
+  {n:"Pain complet",per100:{kcal:250,p:9,c:45,f:3},g:80,lev:"c",min:40,max:160},
+  {n:"Thon au naturel (égoutté)",per100:{kcal:110,p:25,c:0,f:1},g:80,lev:"p",min:50,max:140},
+  {n:"Fromage frais",per100:{kcal:250,p:7,c:3,f:22},g:30}]},
+ {n:"Skyr + pomme + beurre de cacahuète",items:[
+  {n:"Skyr nature",per100:{kcal:63,p:11,c:4,f:0.2},g:250,lev:"p",min:150,max:450},
+  {n:"Pomme",per100:{kcal:52,p:0.3,c:12,f:0.2},g:150,lev:"c",min:80,max:300},
+  {n:"Beurre de cacahuète",per100:{kcal:590,p:25,c:20,f:50},g:20}]},
+ {n:"Barres avoine maison + lait",items:[
+  {n:"Flocons d'avoine (cru)",per100:{kcal:370,p:13,c:60,f:7},g:50,lev:"c",min:25,max:100},
+  {n:"Lait demi-écrémé",per100:{kcal:47,p:3.3,c:4.8,f:1.5},g:300,lev:"p",min:150,max:500},
+  {n:"Beurre de cacahuète",per100:{kcal:590,p:25,c:20,f:50},g:20},
+  {n:"Miel",per100:{kcal:304,p:0.3,c:82,f:0},g:15}]},
+ {n:"Œufs durs + crackers",items:[
+  {n:"Œufs entiers",per100:{kcal:143,p:12.5,c:1,f:10},g:110,lev:"p",min:55,max:220},
+  {n:"Crackers complets",per100:{kcal:420,p:10,c:65,f:12},g:40,lev:"c",min:20,max:90},
+  {n:"Tomates cerises",per100:{kcal:20,p:1,c:3.5,f:0.2},g:100}]},
+ {n:"Smoothie mangue-whey",items:[
+  {n:"Whey",per100:{kcal:390,p:78,c:6,f:6},g:30,lev:"p",min:15,max:60},
+  {n:"Mangue",per100:{kcal:60,p:0.8,c:14,f:0.4},g:150,lev:"c",min:80,max:300},
+  {n:"Lait demi-écrémé",per100:{kcal:47,p:3.3,c:4.8,f:1.5},g:250},
+  {n:"Flocons d'avoine (cru)",per100:{kcal:370,p:13,c:60,f:7},g:20}]}],
+main:[
+ {n:"Poulet riz légumes",items:[
+  {n:"Blanc de poulet cuit",per100:{kcal:165,p:31,c:0,f:3.6},g:160,lev:"p",min:100,max:300},
+  {n:"Riz cuit",per100:{kcal:130,p:2.7,c:28,f:0.3},g:250,lev:"c",min:120,max:500},
+  {n:"Huile d'olive",per100:{kcal:884,p:0,c:0,f:100},g:10},
+  {n:"Légumes poêlés",per100:{kcal:40,p:2,c:5,f:1},g:200}]},
+ {n:"Pâtes bolognaise (haché 5%)",items:[
+  {n:"Pâtes cuites",per100:{kcal:155,p:5.8,c:30,f:0.9},g:280,lev:"c",min:150,max:550},
+  {n:"Bœuf haché 5% cuit",per100:{kcal:170,p:26,c:0,f:7},g:150,lev:"p",min:100,max:280},
+  {n:"Sauce tomate",per100:{kcal:50,p:1.5,c:7,f:1.5},g:120},
+  {n:"Parmesan",per100:{kcal:420,p:38,c:3,f:29},g:15}]},
+ {n:"Saumon pommes de terre",items:[
+  {n:"Saumon cuit",per100:{kcal:208,p:22,c:0,f:13},g:150,lev:"p",min:100,max:250},
+  {n:"Pommes de terre cuites",per100:{kcal:87,p:1.9,c:20,f:0.1},g:350,lev:"c",min:150,max:650},
+  {n:"Haricots verts",per100:{kcal:31,p:1.8,c:5,f:0.1},g:200},
+  {n:"Huile d'olive",per100:{kcal:884,p:0,c:0,f:100},g:8}]},
+ {n:"Dinde patate douce",items:[
+  {n:"Filet de dinde cuit",per100:{kcal:150,p:30,c:0,f:2.5},g:160,lev:"p",min:100,max:300},
+  {n:"Patate douce cuite",per100:{kcal:90,p:1.6,c:21,f:0.1},g:300,lev:"c",min:150,max:600},
+  {n:"Brocoli",per100:{kcal:35,p:2.8,c:5,f:0.4},g:200},
+  {n:"Huile d'olive",per100:{kcal:884,p:0,c:0,f:100},g:10}]},
+ {n:"Cabillaud riz curry-coco",items:[
+  {n:"Cabillaud cuit",per100:{kcal:105,p:23,c:0,f:1},g:180,lev:"p",min:120,max:320},
+  {n:"Riz cuit",per100:{kcal:130,p:2.7,c:28,f:0.3},g:250,lev:"c",min:120,max:500},
+  {n:"Lait de coco",per100:{kcal:185,p:1.8,c:3,f:18},g:60},
+  {n:"Légumes wok",per100:{kcal:40,p:2,c:5,f:1},g:200}]},
+ {n:"Chili con carne (haché 5%)",items:[
+  {n:"Bœuf haché 5% cuit",per100:{kcal:170,p:26,c:0,f:7},g:150,lev:"p",min:100,max:280},
+  {n:"Riz cuit",per100:{kcal:130,p:2.7,c:28,f:0.3},g:220,lev:"c",min:120,max:450},
+  {n:"Haricots rouges (égouttés)",per100:{kcal:95,p:6.5,c:14,f:0.5},g:130},
+  {n:"Sauce tomate",per100:{kcal:50,p:1.5,c:7,f:1.5},g:120}]},
+ {n:"Poulet fajitas + tortillas",items:[
+  {n:"Blanc de poulet cuit",per100:{kcal:165,p:31,c:0,f:3.6},g:150,lev:"p",min:100,max:280},
+  {n:"Tortillas blé",per100:{kcal:300,p:8,c:50,f:7},g:150,lev:"c",min:60,max:250},
+  {n:"Poivrons + oignons poêlés",per100:{kcal:45,p:1.5,c:7,f:1},g:180},
+  {n:"Crème légère",per100:{kcal:120,p:2.8,c:4,f:10},g:30}]},
+ {n:"Omelette 4 œufs + pain + fromage",items:[
+  {n:"Œufs entiers",per100:{kcal:143,p:12.5,c:1,f:10},g:220,lev:"p",min:110,max:330},
+  {n:"Pain complet",per100:{kcal:250,p:9,c:45,f:3},g:100,lev:"c",min:60,max:180},
+  {n:"Gouda",per100:{kcal:356,p:25,c:2,f:27},g:30},
+  {n:"Champignons poêlés",per100:{kcal:28,p:3,c:3,f:0.5},g:150}]},
+ {n:"Steak haché purée",items:[
+  {n:"Bœuf haché 5% cuit",per100:{kcal:170,p:26,c:0,f:7},g:160,lev:"p",min:100,max:300},
+  {n:"Purée de pommes de terre",per100:{kcal:105,p:2,c:16,f:3.5},g:350,lev:"c",min:150,max:650},
+  {n:"Petits pois-carottes",per100:{kcal:60,p:3.5,c:9,f:0.5},g:180}]},
+ {n:"Pâtes au thon tomate",items:[
+  {n:"Pâtes cuites",per100:{kcal:155,p:5.8,c:30,f:0.9},g:280,lev:"c",min:150,max:550},
+  {n:"Thon au naturel (égoutté)",per100:{kcal:110,p:25,c:0,f:1},g:130,lev:"p",min:80,max:240},
+  {n:"Sauce tomate",per100:{kcal:50,p:1.5,c:7,f:1.5},g:130},
+  {n:"Huile d'olive",per100:{kcal:884,p:0,c:0,f:100},g:10}]},
+ {n:"Vol-au-vent riz (allégé)",items:[
+  {n:"Blanc de poulet cuit",per100:{kcal:165,p:31,c:0,f:3.6},g:150,lev:"p",min:100,max:280},
+  {n:"Riz cuit",per100:{kcal:130,p:2.7,c:28,f:0.3},g:250,lev:"c",min:120,max:500},
+  {n:"Champignons poêlés",per100:{kcal:28,p:3,c:3,f:0.5},g:120},
+  {n:"Crème légère",per100:{kcal:120,p:2.8,c:4,f:10},g:60}]},
+ {n:"Boulettes sauce tomate + semoule",items:[
+  {n:"Boulettes bœuf-porc cuites",per100:{kcal:230,p:18,c:5,f:15},g:160,lev:"p",min:100,max:280},
+  {n:"Semoule cuite",per100:{kcal:112,p:3.8,c:23,f:0.2},g:280,lev:"c",min:140,max:550},
+  {n:"Sauce tomate",per100:{kcal:50,p:1.5,c:7,f:1.5},g:130},
+  {n:"Courgettes poêlées",per100:{kcal:25,p:1.5,c:3,f:0.4},g:150}]},
+ {n:"Poke bowl saumon",items:[
+  {n:"Saumon cru (sashimi)",per100:{kcal:180,p:20,c:0,f:11},g:130,lev:"p",min:90,max:220},
+  {n:"Riz cuit",per100:{kcal:130,p:2.7,c:28,f:0.3},g:250,lev:"c",min:120,max:500},
+  {n:"Edamame",per100:{kcal:120,p:11,c:9,f:5},g:80},
+  {n:"Avocat",per100:{kcal:160,p:2,c:9,f:15},g:60},
+  {n:"Sauce soja sucrée",per100:{kcal:120,p:4,c:25,f:0},g:20}]}]
+};
+function clamp5(v,mn,mx){return Math.max(mn,Math.min(mx,Math.round(v/5)*5));}
+function planItemsTotal(items){return items.reduce((a,x)=>{const s=x.g/100;return{kcal:a.kcal+x.per100.kcal*s,p:a.p+x.per100.p*s,c:a.c+x.per100.c*s,f:a.f+x.per100.f*s};},{kcal:0,p:0,c:0,f:0});}
+const PLAN_OFF={dej:0,c10:0,diner:0,c16:1,souper:1,soiree:2};
+/* Équivalent cru pour les grammages affichés en cuit (ratios moyens à l'eau/poêle) */
+const CRU_RATIOS=[
+  [/riz cuit/i,2.9],[/pâtes cuites/i,2.35],[/semoule cuite/i,2.6],[/quinoa cuit/i,2.8],[/lentilles cuites/i,2.5],
+  [/poulet cuit|dinde cuit/i,0.75],[/haché.*cuit|bœuf.*cuit|boulettes.*cuites/i,0.75],[/saumon cuit|cabillaud cuit|poisson cuit/i,0.85]
+];
+function cruHint(name,g){
+  for(const[re,r]of CRU_RATIOS){if(re.test(name))return ` <span style="color:var(--faint)">(≈${Math.round(g/r/5)*5} g cru)</span>`;}
+  return "";
+}
+/* Convertit un plat enregistré en recette scalable : leviers auto (item le + protéiné = p, item le + calorique en glucides = c) */
+function savedAsRecipe(m){
+  const items=m.items.map(x=>({n:x.n,per100:x.per100,g:x.g}));
+  let pi=null,ci=null,pBest=0,cBest=0;
+  items.forEach(x=>{
+    const p=x.g*x.per100.p/100,c=x.g*x.per100.c/100;
+    if(p>pBest){pBest=p;pi=x;}
+    if(c>cBest){cBest=c;ci=x;}
+  });
+  if(pi){pi.lev="p";pi.min=clamp5(pi.g*0.5,5,2000);pi.max=clamp5(pi.g*2,10,2000);}
+  if(ci&&ci!==pi){ci.lev="c";ci.min=clamp5(ci.g*0.5,5,2000);ci.max=clamp5(ci.g*2,10,2000);}
+  return {n:m.n+" ★",items};
+}
+function planPool(cat){
+  const base=PLAN_RECIPES[cat]||[];
+  const saved=(S.savedMeals||[]).filter(m=>{
+    const k=planItemsTotal(m.items).kcal;
+    return cat==="main"?k>=400:(cat==="snack"?k<400:false);
+  }).map(savedAsRecipe);
+  return base.concat(saved);
+}
+function scaleRecipe(r,target){
+  const items=r.items.map(x=>Object.assign({},x));
+  const pi=items.find(x=>x.lev==="p");
+  if(pi&&pi.per100.p>0){const t=planItemsTotal(items);pi.g=clamp5(pi.g+(target.p-t.p)*100/pi.per100.p,pi.min,pi.max);}
+  const ci=items.find(x=>x.lev==="c");
+  if(ci&&ci.per100.kcal>0){const t=planItemsTotal(items);ci.g=clamp5(ci.g+(target.kcal-t.kcal)*100/ci.per100.kcal,ci.min,ci.max);}
+  return {name:r.n,items,tot:planItemsTotal(items)};
+}
+function buildSlotMeal(slot,target){
+  const list=planPool(PLAN_CAT[slot]||"snack");
+  const vi=((((S.planVar||{})[viewDate]||{})[slot]||0)+(PLAN_OFF[slot]||0))%list.length;
+  return scaleRecipe(list[vi],target);
+}
+function planCompute(){
+  const e=eatenOn(viewDate),g=dayGoal(viewDate);
+  const R={kcal:Math.max(0,g.kcal-e.kcal),p:Math.max(0,g.p-e.p),c:Math.max(0,g.c-e.c),f:Math.max(0,g.f-e.f)};
+  const arr=S.foods[viewDate]||[];
+  let slots=MEALS.filter(s=>!arr.some(f=>(f.meal||"diner")===s.id));
+  let extra=false;
+  if(!slots.length&&R.kcal>150){slots=[MEALS.find(s=>s.id==="soiree")];extra=true;}
+  const wSum=slots.reduce((a,s)=>a+(PLAN_W[s.id]||.1),0)||1;
+  const out={R,extra,builds:[]};
+  slots.forEach(s=>{
+    const w=(PLAN_W[s.id]||.1)/wSum;
+    const target={kcal:R.kcal*w,p:R.p*w,c:R.c*w,f:R.f*w};
+    out.builds.push({slot:s.id,label:s.label,target,built:buildSlotMeal(s.id,target)});
+  });
+  // Passe corrective : si le plan total dépasse le restant, on rabote les leviers glucides
+  let tot=out.builds.reduce((a,b)=>a+b.built.tot.kcal,0);
+  let over=tot-R.kcal;
+  if(over>80){
+    out.builds.forEach(b=>{
+      if(over<=0)return;
+      const ci=b.built.items.find(x=>x.lev==="c");
+      if(!ci||!ci.per100.kcal)return;
+      const room=(ci.g-ci.min)/100*ci.per100.kcal; // kcal réductibles sur ce levier
+      const cut=Math.min(room,over);
+      ci.g=clamp5(ci.g-cut*100/ci.per100.kcal,ci.min,ci.max);
+      b.built.tot=planItemsTotal(b.built.items);
+      over-=cut;
+    });
+  }
+  return out;
+}
+function renderPlan(){
+  const el=document.getElementById("planBody");if(!el)return;
+  const pc=planCompute();
+  document.getElementById("planTag").textContent=Math.round(pc.R.kcal)+" kcal à planifier";
+  if(pc.R.kcal<=50){el.innerHTML='<div class="callout">✅ Objectif du jour atteint (ou presque). Rien à planifier.</div>';return;}
+  if(pc.R.kcal<250){
+    const needP=pc.R.p>15;
+    el.innerHTML=`<div class="callout">Il te reste <b>~${Math.round(pc.R.kcal)} kcal</b>${needP?` et <b>${Math.round(pc.R.p)} g de protéines</b>`:""}. Pas besoin d'un vrai repas : ${needP?"un skyr (250 g ≈ 160 kcal, P27) ou un shake de whey (30 g dans l'eau ≈ 120 kcal, P23)":"un fruit + une poignée d'amandes, ou un yaourt"} suffit.</div>`;return;
+  }
+  if(!pc.builds.length){el.innerHTML='<p class="note">Aucun créneau disponible.</p>';return;}
+  const head=pc.extra?'<div class="callout" style="margin-bottom:10px">Tous tes repas sont remplis mais il te manque encore des kcal → idée de collation bonus :</div>':"";
+  el.innerHTML=head+pc.builds.map(b=>{
+    const t=b.built.tot;
+    return `<div style="border:1px solid var(--surface2);border-radius:11px;padding:10px;margin-bottom:8px">
+      <div class="row between">
+        <div><span class="eyebrow">${b.label}</span><div style="font-weight:600">${b.built.name}</div></div>
+        <div class="row" style="gap:6px">
+          <button class="btn btn-sm" title="Autre idée" onclick="planCycle('${b.slot}')">↻</button>
+          <button class="btn btn-sm" title="Modifier dans le composeur" onclick="planEdit('${b.slot}')">✎</button>
+          <button class="btn btn-sm btn-prim" title="Ajouter au journal" onclick="planLog('${b.slot}')">✓</button>
+        </div>
+      </div>
+      <div class="fk" style="margin-top:6px">${b.built.items.map(x=>`${x.g} g ${x.n}${cruHint(x.n,x.g)}`).join(" · ")}</div>
+      <div class="fk" style="margin-top:4px;color:var(--lime)">${Math.round(t.kcal)} kcal · P${Math.round(t.p)} G${Math.round(t.c)} L${Math.round(t.f)} <span style="color:var(--faint)">(cible ~${Math.round(b.target.kcal)} kcal · P${Math.round(b.target.p)})</span></div>
+    </div>`;
+  }).join("");
+}
+function planCycle(slot){
+  if(!S.planVar)S.planVar={};
+  if(!S.planVar[viewDate])S.planVar[viewDate]={};
+  S.planVar[viewDate][slot]=(S.planVar[viewDate][slot]||0)+1;
+  save();renderNut();
+}
+function planLog(slot){
+  const pc=planCompute();
+  const b=pc.builds.find(x=>x.slot===slot);if(!b)return;
+  const t=b.built.tot;
+  const food={n:b.built.name+" (plan)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:slot};
+  if(!S.foods[viewDate])S.foods[viewDate]=[];
+  S.foods[viewDate].push(food);
+  save();renderNut();toast("Repas du plan ajouté ✓ Le reste est recalculé.");
+}
+function planEdit(slot){
+  const pc=planCompute();
+  const b=pc.builds.find(x=>x.slot===slot);if(!b)return;
+  meal=b.built.items.map(x=>({n:x.n,per100:{kcal:x.per100.kcal,p:x.per100.p,c:x.per100.c,f:x.per100.f},grams:x.g}));
+  activeMeal=slot;
+  document.getElementById("mealName").value=b.built.name;
+  const dc=document.getElementById("composerCard");if(dc)dc.open=true;
+  renderNut();
+  if(dc)dc.scrollIntoView({behavior:"smooth"});
+  toast("Chargé dans le composeur : ajuste puis ajoute.");
+}
+/* ===== Mes plats (plats enregistrés) ===== */
+function renderSavedMeals(){
+  const el=document.getElementById("savedBody");if(!el)return;
+  const arr=S.savedMeals||[];
+  const tag=document.getElementById("savedTag");if(tag)tag.textContent=arr.length+" plat"+(arr.length>1?"s":"");
+  if(!arr.length){el.innerHTML='<p class="note">Aucun plat enregistré. Chaque repas ajouté via le composeur est sauvegardé ici automatiquement, et entre dans la rotation des idées du plan (marqué ★).</p>';return;}
+  el.innerHTML=arr.map((m,i)=>{
+    const t=planItemsTotal(m.items);
+    return `<div style="border:1px solid var(--surface2);border-radius:11px;padding:10px;margin-bottom:8px">
+      <div class="row between">
+        <div style="font-weight:600">${m.n}</div>
+        <div class="row" style="gap:6px">
+          <button class="btn btn-sm" title="Adapter à ce qu'il te reste aujourd'hui" onclick="savedFit(${i})">🎯</button>
+          <button class="btn btn-sm" title="Modifier dans le composeur" onclick="savedEdit(${i})">✎</button>
+          <button class="btn btn-sm btn-prim" title="Ajouter tel quel au journal" onclick="savedLog(${i})">✓</button>
+          <button class="del" onclick="savedDel(${i})">×</button>
+        </div>
+      </div>
+      <div class="fk" style="margin-top:6px">${m.items.map(x=>`${x.g} g ${x.n}${cruHint(x.n,x.g)}`).join(" · ")}</div>
+      <div class="fk" style="margin-top:4px;color:var(--lime)">${Math.round(t.kcal)} kcal · P${Math.round(t.p)} G${Math.round(t.c)} L${Math.round(t.f)}</div>
+    </div>`;
+  }).join("");
+}
+function savedLog(i){
+  const m=(S.savedMeals||[])[i];if(!m)return;
+  const t=planItemsTotal(m.items);
+  if(!S.foods[viewDate])S.foods[viewDate]=[];
+  S.foods[viewDate].push({n:m.n+" (plat)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal});
+  save();renderNut();toast("Plat ajouté tel quel ✓");
+}
+function savedFit(i){
+  const m=(S.savedMeals||[])[i];if(!m)return;
+  const e=eatenOn(viewDate),g=dayGoal(viewDate);
+  const R={kcal:Math.max(0,g.kcal-e.kcal),p:Math.max(0,g.p-e.p)};
+  if(R.kcal<100){toast("Objectif quasi atteint : ajoute-le tel quel ou passe.");return;}
+  // Cible = restant du créneau actif selon les poids du plan, borné au restant total
+  const w=PLAN_W[activeMeal]||.25;
+  const target={kcal:Math.min(R.kcal,Math.max(250,R.kcal*w*1.5)),p:Math.min(R.p,Math.max(20,R.p*w*1.5))};
+  const built=scaleRecipe(savedAsRecipe(m),target);
+  meal=built.items.map(x=>({n:x.n,per100:x.per100,grams:x.g}));
+  document.getElementById("mealName").value=m.n;
+  const dc=document.getElementById("composerCard");if(dc){dc.open=true;dc.scrollIntoView({behavior:"smooth"});}
+  renderNut();
+  toast(`Quantités adaptées (~${Math.round(built.tot.kcal)} kcal, P${Math.round(built.tot.p)}) : vérifie puis ajoute.`);
+}
+function savedEdit(i){
+  const m=(S.savedMeals||[])[i];if(!m)return;
+  meal=m.items.map(x=>({n:x.n,per100:x.per100,grams:x.g}));
+  document.getElementById("mealName").value=m.n;
+  const dc=document.getElementById("composerCard");if(dc){dc.open=true;dc.scrollIntoView({behavior:"smooth"});}
+  renderNut();toast("Chargé dans le composeur.");
+}
+function savedDel(i){
+  if(!confirm("Supprimer ce plat enregistré ?"))return;
+  S.savedMeals.splice(i,1);save();renderNut();
+}
+let mealOffResults=[];
 function renderMealSearch(){
   const q=(document.getElementById("mealSearch").value||"").toLowerCase().trim();
   const el=document.getElementById("mealSearchRes");
   if(!q){el.innerHTML="";return;}
-  const res=FOODDB.map((f,i)=>({f,i})).filter(o=>o.f.n.toLowerCase().includes(q)).slice(0,8);
-  el.innerHTML=res.length?res.map(o=>`<button class="vbtn" onclick="mealAdd(${o.i})">+ ${o.f.n}</button>`).join(""):'<p class="note">Aucun ingrédient dans la base. Pour un produit de marque, utilise la recherche ou le scan plus haut.</p>';
+  const db=FOODDB.map((f,i)=>({f,i})).filter(o=>o.f.n.toLowerCase().includes(q)).slice(0,8);
+  const lib=S.library.map((f,i)=>({f,i})).filter(o=>o.f.per100&&!o.f.fixed&&o.f.n.toLowerCase().includes(q)).slice(0,5);
+  let html=db.map(o=>`<button class="vbtn" onclick="mealAdd(${o.i})">+ ${o.f.n}</button>`).join("")
+    +lib.map(o=>`<button class="vbtn" onclick="mealAddLib(${o.i})">+ ${o.f.n} <span class="tag" style="font-size:9px">perso</span></button>`).join("");
+  if(!html)html='<p class="note">Rien dans la base ni tes aliments.</p>';
+  if(q.length>=3)html+=`<button class="btn btn-block btn-sm" style="margin-top:8px" onclick="mealOffSearch()">🌐 Chercher « ${q} » en ligne (marques)</button>`;
+  el.innerHTML=html;
 }
 function mealAdd(i){const f=FOODDB[i];meal.push({n:f.n,per100:{kcal:f.kcal,p:f.p,c:f.c,f:f.f},grams:50});document.getElementById("mealSearch").value="";document.getElementById("mealSearchRes").innerHTML="";renderMeal();}
+function mealAddLib(i){const f=S.library[i];meal.push({n:f.n,per100:{kcal:f.kcal,p:f.p,c:f.c,f:f.f},grams:100});document.getElementById("mealSearch").value="";document.getElementById("mealSearchRes").innerHTML="";renderMeal();}
+async function mealOffSearch(){
+  const q=(document.getElementById("mealSearch").value||"").trim();if(!q)return;
+  const el=document.getElementById("mealSearchRes");
+  el.innerHTML='<p class="note">Recherche en ligne…</p>';
+  try{
+    const r=await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=12&fields=product_name,brands,nutriments`);
+    const d=await r.json();
+    const items=(d.products||[]).filter(p=>p.product_name&&p.nutriments&&p.nutriments["energy-kcal_100g"]);
+    if(!items.length){el.innerHTML='<p class="note">Rien trouvé en ligne.</p>';return;}
+    mealOffResults=items.slice(0,12).map(p=>{const n=p.nutriments;return {n:(p.product_name+(p.brands?" · "+p.brands:"")),k:Math.round(n["energy-kcal_100g"]||0),p:+(n.proteins_100g||0).toFixed(1),c:+(n.carbohydrates_100g||0).toFixed(1),f:+(n.fat_100g||0).toFixed(1)};});
+    el.innerHTML=mealOffResults.map((o,i)=>
+      `<div class="food" style="cursor:pointer" onclick="mealAddOff(${i})"><div style="flex:1"><div>+ ${o.n} <span class="tag" style="font-size:9px">en ligne</span></div><div class="fk">${o.k} kcal · P${o.p} G${o.c} L${o.f} / 100 g</div></div></div>`
+    ).join("");
+  }catch(e){el.innerHTML='<p class="note">Pas de connexion.</p>';}
+}
+function mealAddOff(i){
+  const o=mealOffResults[i];if(!o)return;
+  meal.push({n:o.n,per100:{kcal:o.k,p:o.p,c:o.c,f:o.f},grams:100});
+  upsertLib({n:o.n,kcal:o.k,p:o.p,c:o.c,f:o.f,unit:"g",per100:true});
+  document.getElementById("mealSearch").value="";document.getElementById("mealSearchRes").innerHTML="";
+  save();renderMeal();toast("Ingrédient ajouté (aussi enregistré dans tes aliments).");
+}
+function toggleMealManual(){const d=document.getElementById("mealManual");d.style.display=d.style.display==="none"?"block":"none";}
+function mealAddManual(){
+  const n=(document.getElementById("mmName").value||"").trim();
+  const g=+document.getElementById("mmG").value||0;
+  const kcal=+document.getElementById("mmKcal").value||0,p=+document.getElementById("mmP").value||0,c=+document.getElementById("mmC").value||0,f=+document.getElementById("mmF").value||0;
+  if(!n||g<=0||kcal<=0){toast("Nom, quantité et calories obligatoires.");return;}
+  const s=100/g;
+  const per100={kcal:+(kcal*s).toFixed(1),p:+(p*s).toFixed(1),c:+(c*s).toFixed(1),f:+(f*s).toFixed(1)};
+  meal.push({n,per100,grams:g});
+  upsertLib({n,kcal:per100.kcal,p:per100.p,c:per100.c,f:per100.f,unit:"g",per100:true});
+  ["mmName","mmKcal","mmP","mmC","mmF"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("mmG").value=100;
+  save();renderMeal();toast("Ingrédient ajouté au repas ✓ (enregistré dans tes aliments)");
+}
+function mealScanShortcut(){
+  const bc=document.getElementById("bcCode");
+  const card=bc?bc.closest("details"):null;
+  if(card){card.open=true;card.scrollIntoView({behavior:"smooth"});}
+  toast("Scanne ou saisis le code, puis « ➕ Ajouter comme ingrédient au composeur ».");
+}
+function addBcToMeal(){
+  if(!bcPer100.n){toast("Scanne d'abord un produit.");return;}
+  const qty=Math.max(1,+document.getElementById("bcQty").value||100);
+  meal.push({n:bcPer100.n,per100:{kcal:bcPer100.kcal,p:bcPer100.p,c:bcPer100.c,f:bcPer100.f},grams:qty});
+  upsertLib({n:bcPer100.n,kcal:Math.round(bcPer100.kcal),p:Math.round(bcPer100.p),c:Math.round(bcPer100.c),f:Math.round(bcPer100.f),unit:bcPer100.unit,per100:true});
+  const dc=document.getElementById("composerCard");if(dc){dc.open=true;dc.scrollIntoView({behavior:"smooth"});}
+  save();renderMeal();toast("Ingrédient scanné ajouté au composeur ✓");
+}
 function mealSetGrams(idx,v){if(meal[idx]){meal[idx].grams=Math.max(0,+v||0);renderMealTotals();}}
 function mealDel(idx){meal.splice(idx,1);renderMeal();}
 function mealTotals(){return meal.reduce((a,m)=>{const s=m.grams/100;return {kcal:a.kcal+m.per100.kcal*s,p:a.p+m.per100.p*s,c:a.c+m.per100.c*s,f:a.f+m.per100.f*s};},{kcal:0,p:0,c:0,f:0});}
@@ -1818,8 +2303,13 @@ function addMealToJournal(){
   const food={n:name+" (composé)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal};
   if(!S.foods[viewDate])S.foods[viewDate]=[];S.foods[viewDate].push(food);
   upsertLib({n:food.n,kcal:food.kcal,p:food.p,c:food.c,f:food.f,fixed:true});
+  // Enregistre le plat avec ses ingrédients (réutilisable + intégré aux idées du plan)
+  if(!S.savedMeals)S.savedMeals=[];
+  const sm={n:name,items:meal.map(m=>({n:m.n,per100:{kcal:m.per100.kcal,p:m.per100.p,c:m.per100.c,f:m.per100.f},g:m.grams}))};
+  const ex=S.savedMeals.findIndex(x=>x.n===name);
+  if(ex>=0)S.savedMeals[ex]=sm;else{S.savedMeals.unshift(sm);if(S.savedMeals.length>40)S.savedMeals.pop();}
   meal=[];document.getElementById("mealName").value="";renderMeal();
-  save();renderNut();toast("Repas ajouté au journal ✓");
+  save();renderNut();toast("Repas ajouté au journal + enregistré dans Mes plats ✓");
 }
 let camStream=null,camRAF=null;
 async function scanCam(){
