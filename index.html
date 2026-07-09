@@ -1308,13 +1308,16 @@ function renderCustomSession(){
   const cs=S.curSets["P"]||{};
   let html=S.customExos.map((exo,ei)=>{
     const reco=computeReco(exo.n,{reps:null,start:0,sets:exo.sets});
+    const lp=lastPerf(exo.n);
     const sets=[...Array(exo.sets)].map((_,si)=>{
       const v=cs[ei]&&cs[ei][si]?cs[ei][si]:{w:reco.load||"",r:"",done:false};
+      const phR=lp&&lp.sets[si]?lp.sets[si].r:(lp&&lp.sets.length?lp.sets[lp.sets.length-1].r:"reps");
+      const phRir=lp&&lp.sets[si]&&lp.sets[si].rir!==""&&lp.sets[si].rir!=null?lp.sets[si].rir:"RIR";
       return `<div class="setrow">
         <div class="si">${si+1}</div>
         <input type="number" inputmode="decimal" placeholder="kg" value="${v.w}" oninput="setVal(${ei},${si},'w',this.value)">
-        <input type="number" inputmode="numeric" placeholder="reps" value="${v.r}" oninput="setVal(${ei},${si},'r',this.value)">
-        <input type="number" inputmode="numeric" placeholder="RIR" value="${v.rir!=null?v.rir:''}" oninput="setVal(${ei},${si},'rir',this.value)">
+        <input type="number" inputmode="numeric" placeholder="${phR}" value="${v.r}" oninput="setVal(${ei},${si},'r',this.value)">
+        <input type="number" inputmode="numeric" placeholder="${phRir}" value="${v.rir!=null?v.rir:''}" oninput="setVal(${ei},${si},'rir',this.value)">
         <div class="chk ${v.done?'done':''}" onclick="toggleSet(${ei},${si},120)">✓</div>
       </div>`;
     }).join("");
@@ -1339,11 +1342,10 @@ function renderCustomSession(){
   document.getElementById("exoList").innerHTML=html+`<button class="btn btn-block" style="margin-top:10px" onclick="addCustomExo()">+ Ajouter un exercice</button>`;
 }
 function addCustomExo(){
-  modalInput("Nouvel exercice",[{label:"Nom de l'exercice",placeholder:"ex : Curl marteau"},{label:"Nombre de séries",type:"number",value:3}],(vals)=>{
-    if(!vals)return;
-    const n=(vals[0]||"").trim();if(!n){toast("Nom requis.");return;}
-    let s=parseInt(vals[1],10)||3;s=Math.max(1,Math.min(12,s));
-    S.customExos.push({n,sets:s});save();renderCustomSession();toast("Exercice ajouté ✓");
+  pickExercise("Ajouter un exercice",(res)=>{
+    const s=Math.max(1,Math.min(12,res.nSets||3));
+    S.customExos.push({n:res.n,sets:s});save();renderCustomSession();
+    toast(res.known?`${res.n} ajouté ✓ — charge & séries reprises de ta dernière perf`:"Exercice ajouté ✓");
   });
 }
 function delCustomExo(ei){
@@ -1454,10 +1456,76 @@ function chooseVariant(day,ei,vi){
   const el=document.getElementById("exo"+ei);if(el)el.classList.add("open");
   toast("Exercice remplacé ✓");
 }
+/* ===== Exercices connus : tout exo déjà loggé (avec dernières perfs) ===== */
+function knownExercises(){
+  const map={};
+  S.logs.forEach(lg=>{(lg.exos||[]).forEach(ex=>{
+    if(!ex.sets||!ex.sets.length)return;
+    map[ex.n]={date:lg.date,sets:ex.sets}; // logs chronologiques → la dernière occurrence gagne
+  });});
+  Object.keys(S.e1rm||{}).forEach(n=>{if(!map[n])map[n]={date:null,sets:null};});
+  return map;
+}
+// Catalogue complet : tous les exercices du programme (A/B/C + variantes) + séance maison + déjà loggés
+function allExerciseNames(){
+  const set=new Set();
+  Object.keys(PROGRAM).forEach(d=>{
+    PROGRAM[d].exos.forEach(exo=>{
+      set.add(exo.n);
+      (exo.variants||[]).forEach(v=>set.add(v.n));
+    });
+  });
+  Object.keys(HOME).forEach(cat=>HOME[cat].forEach(exo=>set.add(exo.n)));
+  Object.keys(knownExercises()).forEach(n=>set.add(n));
+  return Array.from(set).sort((a,b)=>a.localeCompare(b,'fr'));
+}
+let _pickCb=null,_pickKnown=null;
+function pickExercise(title,cb){
+  _pickCb=cb;_pickKnown=knownExercises();
+  const names=allExerciseNames();
+  _modalCb=pickExerciseConfirm;_modalFields=[];
+  document.getElementById("modalTitle").textContent=title;
+  const opts=names.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join("");
+  document.getElementById("modalFields").innerHTML=
+    `<label>Exercice (${names.length} au catalogue)</label>
+     <select id="mf0" onchange="_pickPreview()">${opts}<option value="__other__">✍️ Autre (saisie libre)…</option></select>
+     <p class="note" id="pickPerf" style="margin-top:8px"></p>`;
+  document.getElementById("modal").classList.add("on");
+  setTimeout(_pickPreview,30);
+}
+function _pickPreview(){
+  const sel=document.getElementById("mf0");if(!sel)return;
+  const n=sel.value,pv=document.getElementById("pickPerf");
+  if(n==="__other__"){pv.textContent="Tu saisiras le nom à l'étape suivante.";return;}
+  const m=_pickKnown[n];
+  if(!m){pv.textContent="Jamais réalisé — charge de départ à définir toi-même.";return;}
+  if(m.sets){
+    const s=m.sets;
+    pv.innerHTML=`Dernière perf : <b>${s[0].w} kg</b> × ${s.map(x=>x.r).join("/")} reps${s.some(x=>x.rir!==""&&x.rir!=null)?` · RIR ${s[s.length-1].rir}`:""} (${s.length} séries) — reprise automatique.`;
+  } else {
+    pv.innerHTML=`1RM estimé : <b>${S.e1rm[n]} kg</b> — charge calculée au % cible.`;
+  }
+}
+function pickExerciseConfirm(){
+  const sel=document.getElementById("mf0");
+  if(!sel){modalCancel();return;}
+  const n=sel.value,cb=_pickCb;
+  if(n==="__other__"){
+    modalCancel();
+    modalInput("Nouvel exercice",[{label:"Nom de l'exercice",placeholder:"ex : Curl marteau"}],(vals)=>{
+      if(!vals)return;const name=(vals[0]||"").trim();if(name&&cb)cb({n:name,known:false});
+    });
+    return;
+  }
+  const m=_pickKnown[n];
+  modalCancel();
+  if(cb)cb({n,known:!!m,nSets:m&&m.sets?m.sets.length:null});
+}
 function customVariant(day,ei){
-  modalInput("Autre exercice",[{label:"Nom de l'exercice de remplacement",placeholder:"ex : Tirage poitrine"}],(vals)=>{
-    if(!vals)return;const n=(vals[0]||"").trim();if(!n)return;
-    S.exoChoice[day+"-"+ei]=n;save();renderExos();const el=document.getElementById("exo"+ei);if(el)el.classList.add("open");toast("Exercice remplacé ✓");
+  pickExercise("Autre exercice",(res)=>{
+    S.exoChoice[day+"-"+ei]=res.n;save();renderExos();
+    const el=document.getElementById("exo"+ei);if(el)el.classList.add("open");
+    toast(res.known?"Exercice remplacé ✓ — charge/reps repris de tes dernières perfs":"Exercice remplacé ✓");
   });
 }
 function resetVariant(day,ei){delete S.exoChoice[day+"-"+ei];save();renderExos();const el=document.getElementById("exo"+ei);if(el)el.classList.add("open");}
@@ -1470,7 +1538,8 @@ function renderExos(){
     const swapped=av.n!==vs[0].n;
     const reco=computeReco(av.n,exo);
     const load=reco.load;
-    const sets=[...Array(exo.sets)].map((_,si)=>{
+    const nSets=S.setsAdj[activeDay+"-"+ei]!=null?S.setsAdj[activeDay+"-"+ei]:exo.sets;
+    const sets=[...Array(nSets)].map((_,si)=>{
       const v=cs[ei]&&cs[ei][si]?cs[ei][si]:{w:load||"",r:"",done:false};
       return `<div class="setrow">
         <div class="si">${si+1}</div>
@@ -1487,13 +1556,18 @@ function renderExos(){
     return `<div class="exo" id="exo${ei}">
       <div class="head" onclick="document.getElementById('exo${ei}').classList.toggle('open')">
         <div><div class="nm">${av.n} ${swapped?'<span class="tag" style="font-size:9px">remplacé</span>':''}</div>
-          <div class="pre"><b>${exo.sets}×${exo.reps}</b> · ${exo.pct} · repos ${fmt(exo.rest)} · RIR ${exo.rir}</div></div>
-        <span class="tag">${exo.sets} séries</span>
+          <div class="pre"><b>${nSets}×${exo.reps}</b> · ${exo.pct} · repos ${fmt(exo.rest)} · RIR ${exo.rir}</div></div>
+        <span class="tag">${nSets} série${nSets>1?'s':''}${nSets!==exo.sets?' ✎':''}</span>
       </div>
       <div class="body">
         <div class="cue">💡 ${av.cue}</div>
         ${sets}
         ${e1}
+        <div class="row" style="gap:8px;margin-top:8px">
+          <button class="btn btn-sm" onclick="adjSets('${activeDay}',${ei},1)">+ série</button>
+          <button class="btn btn-sm" onclick="adjSets('${activeDay}',${ei},-1)">− série</button>
+          ${nSets!==exo.sets?`<span class="note" style="align-self:center">prévu : ${exo.sets}</span>`:''}
+        </div>
         <div class="row between" style="margin-top:8px">
           <a class="vid" href="https://www.youtube.com/results?search_query=${encodeURIComponent(av.vid)}" target="_blank">▶ Technique en vidéo</a>
           <button class="btn btn-sm" onclick="document.getElementById('vsel${ei}').classList.toggle('open2')">⇄ Changer d'exercice</button>
@@ -1502,6 +1576,18 @@ function renderExos(){
       </div>
     </div>`;
   }).join("");
+}
+function adjSets(day,ei,d){
+  const base=timeAdjust(PROGRAM[day].exos)[ei].sets;
+  const cur=S.setsAdj[day+"-"+ei]!=null?S.setsAdj[day+"-"+ei]:base;
+  const n=Math.max(1,Math.min(12,cur+d));
+  if(n===base)delete S.setsAdj[day+"-"+ei];else S.setsAdj[day+"-"+ei]=n;
+  // purge les saisies au-delà du nouveau nombre de séries (sinon elles seraient loggées → données faussées)
+  if(S.curSets[day]&&S.curSets[day][ei]){
+    Object.keys(S.curSets[day][ei]).forEach(si=>{if(+si>=n)delete S.curSets[day][ei][si];});
+  }
+  save();renderExos();
+  const el=document.getElementById("exo"+ei);if(el)el.classList.add("open");
 }
 function setVal(ei,si,k,val){
   if(!S.curSets[activeDay])S.curSets[activeDay]={};
@@ -1538,6 +1624,7 @@ function finishSession(){
   if(!logged){toast("Renseigne au moins une série complète.");return;}
   S.logs.push(sessLog);
   S.curSets[d]={};
+  Object.keys(S.setsAdj).forEach(k=>{if(k.indexOf(d+"-")===0)delete S.setsAdj[k];});
   const past=sessDate!==todayKey();
   if(!past){S.sessionCount++;S.nextDay=NEXT[d]||S.nextDay;}
   activeDay=null;sessDate=todayKey();
@@ -2684,6 +2771,7 @@ function modalOk(){
 
 /* ========= INIT ========= */
 if(!S.nextDay)S.nextDay=["A","B","C"][(S.sessionCount||0)%3];
+if(!S.setsAdj)S.setsAdj={}; // {jour-index: nb de séries effectif pour la séance en cours}
 // migration : ajoute la mesure InBody du 21/06/2026 si absente
 if(!S.inbody)S.inbody=[];
 if(!S.inbody.some(x=>x.date==="2026-06-21")){
