@@ -551,11 +551,12 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
       <div id="e1Chart" style="margin-top:10px"></div>
       <p class="note" style="margin-top:8px">1RM Epley (RIR inclus) du meilleur set de chaque séance. C'est <b>la</b> métrique qui dit si le programme marche : vise +2,5 kg toutes les 2-4 semaines sur les gros mouvements. Plate sur 4+ séances = surplus calorique insuffisant ou récupération à revoir.</p>
     </div>
-    <div class="card">
-      <h2>Historique des séances</h2>
+    <details class="card">
+      <summary><h2>Historique des séances</h2><span class="hint" id="histCount"></span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <p class="note" style="margin-bottom:10px">De la plus récente à la plus ancienne. Appuie pour voir le détail et modifier.</p>
       <div id="histList"></div>
-    </div>
+    </div></details>
   </div>
 
   <!-- NUTRITION -->
@@ -573,10 +574,11 @@ details.card>.acc-body{margin-top:12px;animation:accIn .22s ease}
     </div>
 
     <!-- Journal jour par jour -->
-    <div class="card">
-      <div class="eyebrow" style="margin-bottom:10px">Journal jour par jour</div>
+    <details class="card">
+      <summary><h2 style="font-size:15px">Journal jour par jour</h2><span class="hint" id="nutDayCount"></span><span class="chev">▼</span></summary>
+      <div class="acc-body">
       <div id="nutDayList"></div>
-    </div>
+    </div></details>
   </div>
 </section>
 
@@ -785,8 +787,12 @@ const PHASES=[
   {n:"Accumulation",w:"S1-4",rir:"2-3 RIR",desc:"Bases, technique, volume installé. Tu apprends les charges. RIR 2-3 (garde 2-3 reps en réserve)."},
   {n:"Hypertrophie",w:"S5-9",rir:"1-2 RIR",desc:"Volume max (+1 série sur les gros exercices dès S6), intensité montante. RIR 1-2. C'est ici que le muscle se construit le plus."},
   {n:"Intensification",w:"S10-12",rir:"1 RIR",desc:"Plus lourd : les exercices composés passent à 5 reps @~85%. Volume légèrement réduit, charges plus hautes."},
-  {n:"Deload",w:"S13",rir:"4 RIR",desc:"Récupération : -40% de volume, RIR 4. Indispensable pour surcompenser. Puis nouveau bloc avec charges progressées + InBody de contrôle."}
+  {n:"Deload",w:"S13",rir:"4 RIR",desc:"Récupération : -40% de volume, RIR 4. Indispensable pour surcompenser. Puis nouveau bloc avec charges progressées + InBody de contrôle."},
+  {n:"Saison",w:"Août→",rir:"2-3 RIR",desc:"Basket + matchs : la muscu passe en <b>maintien</b>. 2 séances haut du corps/sem max, mêmes charges, RIR 2-3, stop les records. Le volume terrain remplace la séance jambes. Garde le surplus léger (+100-150 kcal les jours de match)."}
 ];
+// Reprise basket + matchs : la programmation bascule automatiquement
+const SEASON_START="2026-08-03";
+function daysToSeason(){return Math.ceil((new Date(SEASON_START+"T00:00:00")-Date.now())/864e5);}
 
 /* ========= ÉTAT ========= */
 let S = load();
@@ -865,8 +871,8 @@ function defaultMeal(){const h=new Date().getHours();if(h<10)return"dej";if(h<12
 let activeMeal=defaultMeal();
 function eatenOn(k){const arr=S.foods[k]||[];return arr.reduce((a,x)=>({kcal:a.kcal+(+x.kcal||0),p:a.p+(+x.p||0),c:a.c+(+x.c||0),f:a.f+(+x.f||0)}),{kcal:0,p:0,c:0,f:0});}
 function eatenToday(){return eatenOn(todayKey());}
-function setViewDate(k){viewDate=k;renderNut();}
-function shiftDate(n){const d=new Date(viewDate+"T12:00:00");d.setDate(d.getDate()+n);viewDate=dkey(d);renderNut();}
+function setViewDate(k){viewDate=k;editIdx=null;editingFood=null;renderNut();}
+function shiftDate(n){const d=new Date(viewDate+"T12:00:00");d.setDate(d.getDate()+n);viewDate=dkey(d);editIdx=null;editingFood=null;renderNut();}
 function setMeal(id){activeMeal=id;renderNut();}
 function dateLabel(k){const d=new Date(k+"T12:00:00");const j=["dim","lun","mar","mer","jeu","ven","sam"][d.getDay()];const y=dkey(new Date(Date.now()-864e5));if(k===todayKey())return"Aujourd'hui";if(k===y)return"Hier";return j+". "+d.getDate()+"/"+(d.getMonth()+1);}
 function mondayOf(k){const d=new Date(k+"T12:00:00");const off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);return d;}
@@ -959,6 +965,7 @@ function renderNutHist(){
     </div>
     <p class="note" style="margin-top:6px">Seuils : protéines ≥ 95 % de la cible · kcal entre 90 et 105 %. Sur les jours renseignés uniquement — un jour non loggé n'est ni bon ni mauvais, il est invisible.</p>`;
   const daysWithFood=[...days].reverse().filter(d=>d.e.kcal>0);
+  const ndc=document.getElementById("nutDayCount");if(ndc)ndc.textContent=daysWithFood.length+" jour(s)";
   document.getElementById("nutDayList").innerHTML=daysWithFood.length
     ?daysWithFood.map(d=>nutDayCard(d.k)).join("")
     :'<p class="note">Aucun repas enregistré cette semaine.</p>';
@@ -1051,6 +1058,7 @@ function renderHist(){
   renderE1Chart();
   const el=document.getElementById("histList");
   const logs=[...S.logs].reverse();
+  const hc=document.getElementById("histCount");if(hc)hc.textContent=logs.length+" séance(s)";
   if(!logs.length){el.innerHTML='<p class="note">Aucune séance enregistrée pour l\'instant.</p>';return;}
   el.innerHTML=logs.map((lg,ri)=>{
     const i=S.logs.length-1-ri;
@@ -1170,7 +1178,12 @@ const NEXT={A:"B",B:"C",C:"A"};
 const PHASE_OFFSET=4; // démarre en semaine 5 = phase Hypertrophie (on saute l'accumulation)
 function curDayKey(){return S.nextDay||"A";}
 function curWeek(){return (Math.floor(S.sessionCount/3)+PHASE_OFFSET)%13 + 1;}
-function curPhase(){const w=curWeek();if(w<=4)return 0;if(w<=9)return 1;if(w<=12)return 2;return 3;}
+function curPhase(){
+  const ds=daysToSeason();
+  if(ds<=0)return 4;            // saison démarrée : maintien
+  if(ds<=7)return 3;            // dernière semaine avant reprise : deload forcé
+  const w=curWeek();if(w<=4)return 0;if(w<=9)return 1;if(w<=12)return 2;return 3;
+}
 function phaseRir(){return PHASES[curPhase()].rir;}
 
 /* ========= HOME ========= */
@@ -1737,7 +1750,25 @@ function renderJournal(){
     if(!idxs.length)return;
     const tot=idxs.reduce((a,o)=>({kcal:a.kcal+o.f.kcal,p:a.p+o.f.p}),{kcal:0,p:0});
     html+=`<div class="eyebrow" style="margin:12px 0 4px">${s.label} · ${Math.round(tot.kcal)} kcal · P${Math.round(tot.p)}</div>`;
-    html+=idxs.map(o=>`<div class="food"><div style="flex:1"><div>${o.f.n}</div><div class="fk">${o.f.kcal} kcal · P${o.f.p} G${o.f.c} L${o.f.f}</div></div><button class="del" style="color:var(--faint);font-size:11px" title="Déplacer à la veille" onclick="moveFood(${o.i},-1)">⏪ J-1</button><button class="del" onclick="delFood(${o.i})">×</button></div>`).join("");
+    html+=idxs.map(o=>{
+      if(editIdx===o.i){
+        return `<div style="background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px;margin:6px 0">
+          <input id="efN" value="${(o.f.n||"").replace(/"/g,"&quot;")}" style="margin-bottom:8px">
+          <div class="setrow" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+            <input id="efK" type="number" inputmode="numeric" value="${o.f.kcal}" placeholder="kcal">
+            <input id="efP" type="number" inputmode="numeric" value="${o.f.p}" placeholder="P">
+            <input id="efC" type="number" inputmode="numeric" value="${o.f.c}" placeholder="G">
+            <input id="efF" type="number" inputmode="numeric" value="${o.f.f}" placeholder="L">
+          </div>
+          <select id="efM" style="margin-bottom:8px">${MEALS.map(m=>`<option value="${m.id}" ${(o.f.meal||"diner")===m.id?"selected":""}>${m.label}</option>`).join("")}</select>
+          <div class="row" style="gap:8px">
+            <button class="btn btn-sm btn-prim" style="flex:1" onclick="saveFoodEdit(${o.i})">Enregistrer</button>
+            <button class="btn btn-sm" style="flex:1" onclick="editIdx=null;renderJournal()">Annuler</button>
+          </div>
+        </div>`;
+      }
+      return `<div class="food"><div style="flex:1"><div>${o.f.n}${o.f.items?' <span style="font-size:10px;color:var(--faint)">('+o.f.items.length+' ingr.)</span>':''}</div><div class="fk">${o.f.kcal} kcal · P${o.f.p} G${o.f.c} L${o.f.f}</div></div><button class="del" style="font-size:14px" title="Modifier" onclick="editFood(${o.i})">✎</button><button class="del" style="color:var(--faint);font-size:11px" title="Déplacer à la veille" onclick="moveFood(${o.i},-1)">⏪ J-1</button><button class="del" onclick="delFood(${o.i})">×</button></div>`;
+    }).join("");
   });
   document.getElementById("foodList").innerHTML=html;
 }
@@ -1747,7 +1778,35 @@ function moveFood(i,n){
   const f=arr.splice(i,1)[0];
   if(!arr.length)delete S.foods[viewDate];
   if(!S.foods[k])S.foods[k]=[];S.foods[k].push(f);
+  editIdx=null;editingFood=null;
   save();renderNut();toast("Déplacé au "+dateLabel(k)+" ✓");
+}
+/* ===== Édition d'une entrée du journal ===== */
+let editIdx=null;        // index en édition inline (aliment simple)
+let editingFood=null;    // {d,i} : entrée journal en cours de réédition via le composeur
+function editFood(i){
+  const f=(S.foods[viewDate]||[])[i];if(!f)return;
+  if(f.items&&f.items.length){
+    // Plat composé : recharge les ingrédients dans le composeur pour ajouter/modifier
+    meal=f.items.map(x=>({n:x.n,per100:{kcal:x.per100.kcal,p:x.per100.p,c:x.per100.c,f:x.per100.f},grams:x.g}));
+    document.getElementById("mealName").value=f.n.replace(/ \((composé|plat|plan)\)$/,"");
+    editingFood={d:viewDate,i};
+    const dc=document.getElementById("composerCard");if(dc){dc.open=true;dc.scrollIntoView({behavior:"smooth"});}
+    renderMeal();
+    toast("Plat chargé : ajoute/retire des ingrédients puis « Ajouter le repas au journal » remplacera l'entrée.");
+  }else{
+    editIdx=i;renderJournal();
+  }
+}
+function saveFoodEdit(i){
+  const f=(S.foods[viewDate]||[])[i];if(!f){editIdx=null;renderJournal();return;}
+  f.n=document.getElementById("efN").value.trim()||f.n;
+  f.kcal=Math.round(+document.getElementById("efK").value||0);
+  f.p=Math.round(+document.getElementById("efP").value||0);
+  f.c=Math.round(+document.getElementById("efC").value||0);
+  f.f=Math.round(+document.getElementById("efF").value||0);
+  f.meal=document.getElementById("efM").value;
+  editIdx=null;save();renderNut();toast("Modifié ✓");
 }
 function renderWeek(){
   const keys=weekKeys(viewDate),m=S.macros;
@@ -2222,7 +2281,8 @@ function planLog(slot){
   const pc=planCompute();
   const b=pc.builds.find(x=>x.slot===slot);if(!b)return;
   const t=b.built.tot;
-  const food={n:b.built.name+" (plan)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:slot};
+  const food={n:b.built.name+" (plan)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:slot,
+    items:b.built.items.map(x=>({n:x.n,per100:{kcal:x.per100.kcal,p:x.per100.p,c:x.per100.c,f:x.per100.f},g:x.g}))};
   if(!S.foods[viewDate])S.foods[viewDate]=[];
   S.foods[viewDate].push(food);
   save();renderNut();toast("Repas du plan ajouté ✓ Le reste est recalculé.");
@@ -2265,7 +2325,8 @@ function savedLog(i){
   const m=(S.savedMeals||[])[i];if(!m)return;
   const t=planItemsTotal(m.items);
   if(!S.foods[viewDate])S.foods[viewDate]=[];
-  S.foods[viewDate].push({n:m.n+" (plat)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal});
+  S.foods[viewDate].push({n:m.n+" (plat)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal,
+    items:m.items.map(x=>({n:x.n,per100:{kcal:x.per100.kcal,p:x.per100.p,c:x.per100.c,f:x.per100.f},g:x.g}))});
   save();renderNut();toast("Plat ajouté tel quel ✓");
 }
 function savedFit(i){
@@ -2387,8 +2448,15 @@ function addMealToJournal(){
   if(!meal.length){toast("Ajoute au moins un ingrédient.");return;}
   const t=mealTotals();
   const name=(document.getElementById("mealName").value||"Repas composé").trim();
-  const food={n:name+" (composé)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal};
-  if(!S.foods[viewDate])S.foods[viewDate]=[];S.foods[viewDate].push(food);
+  const items=meal.map(m=>({n:m.n,per100:{kcal:m.per100.kcal,p:m.per100.p,c:m.per100.c,f:m.per100.f},g:m.grams}));
+  const food={n:name+" (composé)",kcal:Math.round(t.kcal),p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f),meal:activeMeal,items};
+  if(!S.foods[viewDate])S.foods[viewDate]=[];
+  // Mode édition : remplace l'entrée existante au lieu d'en ajouter une nouvelle
+  if(editingFood&&editingFood.d===viewDate&&S.foods[viewDate][editingFood.i]){
+    food.meal=S.foods[viewDate][editingFood.i].meal||activeMeal;
+    S.foods[viewDate][editingFood.i]=food;
+    editingFood=null;
+  }else S.foods[viewDate].push(food);
   upsertLib({n:food.n,kcal:food.kcal,p:food.p,c:food.c,f:food.f,fixed:true});
   // Enregistre le plat avec ses ingrédients (réutilisable + intégré aux idées du plan)
   if(!S.savedMeals)S.savedMeals=[];
@@ -2396,7 +2464,7 @@ function addMealToJournal(){
   const ex=S.savedMeals.findIndex(x=>x.n===name);
   if(ex>=0)S.savedMeals[ex]=sm;else{S.savedMeals.unshift(sm);if(S.savedMeals.length>40)S.savedMeals.pop();}
   meal=[];document.getElementById("mealName").value="";renderMeal();
-  save();renderNut();toast("Repas ajouté au journal + enregistré dans Mes plats ✓");
+  save();renderNut();toast("Repas enregistré au journal + dans Mes plats ✓");
 }
 let camStream=null,camRAF=null;
 async function scanCam(){
@@ -2590,7 +2658,7 @@ function addBlood(){
   ["bl_vitd","bl_crp","bl_wbc","bl_platelets","bl_ferritin","bl_hdl","bl_ldl","bl_tg","bl_glucose"].forEach(id=>document.getElementById(id).value="");
   save();renderBlood();toast("Prise de sang enregistrée ✓");
 }
-function delFood(i){if(S.foods[viewDate]){S.foods[viewDate].splice(i,1);if(!S.foods[viewDate].length)delete S.foods[viewDate];}save();renderNut();}
+function delFood(i){if(S.foods[viewDate]){S.foods[viewDate].splice(i,1);if(!S.foods[viewDate].length)delete S.foods[viewDate];}editIdx=null;editingFood=null;save();renderNut();}
 
 /* ========= BODY ========= */
 function renderBody(){
@@ -2722,10 +2790,14 @@ function saveProfile(){
 
 /* ========= PROG ========= */
 function renderProg(){
-  const cp=curPhase();
+  const cp=curPhase(),ds=daysToSeason();
   document.getElementById("phaseBar").innerHTML=PHASES.map((p,i)=>
     `<div class="p ${i===cp?'now':''}">${p.n}<span class="w">${p.w}</span></div>`).join("");
-  document.getElementById("phaseDesc").innerHTML="<b>Semaine "+curWeek()+" — "+PHASES[cp].n+" :</b> "+PHASES[cp].desc;
+  let seasonMsg="";
+  if(ds>7)seasonMsg=`<div class="callout" style="margin-top:10px">🏀 Reprise basket dans <b>${ds} j</b> (${SEASON_START.split("-").reverse().join("/")}). Plan : hypertrophie à fond jusqu'au ${new Date(new Date(SEASON_START+"T12:00:00")-8*864e5).getDate()}/07, deload la dernière semaine, puis maintien en saison.</div>`;
+  else if(ds>0)seasonMsg=`<div class="callout" style="margin-top:10px">🏀 Reprise dans <b>${ds} j</b> → <b>deload forcé</b> : -40% de volume, RIR 4. Tu arrives frais le jour J, c'est ça qui compte maintenant.</div>`;
+  else seasonMsg=`<div class="callout" style="margin-top:10px">🏀 <b>Saison en cours</b> : maintien. 2 séances haut/sem, mêmes charges, RIR 2-3. La progression reprendra au prochain bloc hors-saison.</div>`;
+  document.getElementById("phaseDesc").innerHTML="<b>Semaine "+curWeek()+" — "+PHASES[cp].n+" :</b> "+PHASES[cp].desc+seasonMsg;
 }
 
 /* ========= DATA ========= */
